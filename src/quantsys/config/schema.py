@@ -61,6 +61,15 @@ class SizingConfig(BaseModel):
     # whole, so no hedge leg goes out alone. Backtest and paper keep the
     # research construction.
     allow_equity_shorts: bool = True
+    # Multi-leg groups are sized from the parent notional, so hedge ratios are
+    # exact until finalize() rounds each leg to whole lots on its own. Legs do
+    # not round by the same proportion: a pair intended at 7.0/2.4 lots ships as
+    # 7/2, 17% under-hedged, carrying directional exposure on a book sized to be
+    # market-neutral. A group whose realised ratio drifts more than this
+    # fraction from the intended one is dropped, the same policy as a leg that
+    # rounds to zero. 0.10 tolerates ordinary rounding on liquid multi-lot legs
+    # and refuses the small-lot cases where the error is material.
+    max_hedge_ratio_drift: float = Field(0.10, gt=0.0, le=1.0)
 
 
 class KellyConfig(BaseModel):

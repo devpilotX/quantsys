@@ -199,9 +199,20 @@ class SizingEngine:
     def _tradeable(self, gid: str, rounded: list[tuple[Component, int]], sig: Signal | None,
                    tier: TierState, state: MarketState, positions: dict[str, Position],
                    sigma_daily: dict[str, float], audits: list[AuditEvent]) -> bool:
-        """Every leg clears the notional floor, and a new trade clears the cost
-        gate. diff_orders skips a sub-floor order, which would open the other
-        legs unhedged, so one sub-floor leg drops the whole group."""
+        """Every leg clears the notional floor, a multi-leg group keeps its
+        hedge ratio through lot rounding, and a new trade clears the cost gate.
+        diff_orders skips a sub-floor order, which would open the other legs
+        unhedged, so one sub-floor leg drops the whole group."""
+        drift = self._hedge_ratio_drift(rounded, state)
+        if drift is not None:
+            # logged on every multi-leg group so small drift is visible too
+            audits.append(AuditEvent("sizing", "hedge_ratio_drift", gid,
+                                     before=drift, after=self.cfg.max_hedge_ratio_drift))
+            if drift > self.cfg.max_hedge_ratio_drift:
+                audits.append(AuditEvent("sizing", "hedge_ratio_reject", gid,
+                                         before=drift, after=0.0))
+                return False
+
         floor = self.effective_min_notional(state.equity)
         for c, q in rounded:
             leg = abs(q) * state.price(c.symbol) * state.instruments[c.symbol].point_value
@@ -228,6 +239,39 @@ class SizingEngine:
                                          f"{gid}: edge Rs{edge_rupees:.0f} < {tier.min_cost_multiple:.1f}x cost Rs{rt:.0f}"))
                 return False
         return True
+
+    @staticmethod
+    def _hedge_ratio_drift(rounded: list[tuple[Component, int]],
+                           state: MarketState) -> float | None:
+        """Worst relative hedge-ratio error that lot rounding introduced.
+
+        Measured on notional, not quantity: a quantity check passes a badly
+        hedged pair whenever the legs trade at different prices, which is the
+        normal case. None for a single-leg group, which has no ratio to keep,
+        and when the parent notional is degenerate.
+        """
+        if len(rounded) < 2:
+            return None
+
+        def notional(c: Component, qty: float) -> float:
+            return abs(qty) * state.price(c.symbol) * state.instruments[c.symbol].point_value
+
+        c_p, q_p = next(((c, q) for c, q in rounded if c.is_parent), rounded[0])
+        intended_parent = notional(c_p, c_p.qty)
+        realized_parent = notional(c_p, q_p)
+        if intended_parent <= 0.0 or realized_parent <= 0.0:
+            return None
+
+        worst = 0.0
+        for c, q in rounded:
+            if c is c_p:
+                continue
+            intended = notional(c, c.qty) / intended_parent
+            if intended <= 0.0:
+                continue
+            realized = notional(c, q) / realized_parent
+            worst = max(worst, abs(realized / intended - 1.0))
+        return worst
 
     def _enforce_caps(self, groups: dict[str, list[Component]],
                       kept: dict[str, list[tuple[Component, int]]], book: TargetBook,

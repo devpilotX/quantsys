@@ -192,6 +192,22 @@ def test_final_targets_never_breach_a_cap_or_orphan_a_leg(data, floor):
     for gid, symbols in got.items():
         assert symbols == legs[gid], f"{gid} lost a leg: {symbols} of {legs[gid]}"
 
+    # lot rounding may bend a hedge ratio only as far as the config allows;
+    # targets list each group's legs in component order, parent first
+    by_group: dict[str, list[TargetPosition]] = {}
+    for t in targets:
+        by_group.setdefault(t.group_id, []).append(t)
+    for gid, ts in by_group.items():
+        if len(ts) < 2:
+            continue
+        parent, other = ts[0], ts[1]
+        intended = abs(capped[(gid, other.symbol)] * ctx.prices[other.symbol]
+                       / (capped[(gid, parent.symbol)] * ctx.prices[parent.symbol]))
+        realized = abs(other.qty * ctx.prices[other.symbol]
+                       / (parent.qty * ctx.prices[parent.symbol]))
+        assert abs(realized / intended - 1.0) <= SizingConfig().max_hedge_ratio_drift + 1e-9, (
+            f"{gid} hedge ratio drifted")
+
 
 @_PROPS
 @given(data=st.data(), risk_scale=st.floats(0.0, 1.0))
