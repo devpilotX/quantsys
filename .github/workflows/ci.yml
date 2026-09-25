@@ -1,0 +1,180 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly, so dependency advisories and upstream library drift surface on a
+    # cadence rather than only when someone happens to push.
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONHASHSEED: "0"          # research results must not depend on hash order
+  FORCE_COLOR: "1"
+
+jobs:
+  lint:
+    name: lint + types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: python -m pip install -e ".[dev,broker]"
+      - name: ruff (lint)
+        run: python -m ruff check --output-format=github .
+      - name: mypy
+        run: python -m mypy
+
+  test:
+    name: test py${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 is the declared floor; 3.14 is what the maintainer runs locally.
+        # Both ends are tested because the numerical stack behaves differently
+        # across them (numpy 2 dtype promotion, pandas 3 copy semantics).
+        python: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: python -m pip install -e ".[dev,broker]"
+      - name: Record the resolved dependency set
+        # Printed on every run so a failure caused by upstream drift can be
+        # diagnosed from the log alone, without reproducing the environment.
+        run: python -m pip freeze
+      - name: pytest
+        run: >
+          python -m pytest tests
+          -p no:cacheprovider
+          --cov=quantsys --cov-report=term-missing --cov-report=xml
+          -m "not network"
+      - name: Enforce determinism (same seed, same result)
+        # The engine claims bit-identical decisions from identical state. A
+        # second run under a different hash seed must still agree.
+        env:
+          PYTHONHASHSEED: "12345"
+        run: python -m pytest tests -q -p no:cacheprovider -m "not network"
+      - name: Upload coverage
+        if: matrix.python == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: error
+
+  dashboard:
+    name: dashboard backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install engine + dashboard backend
+        working-directory: dashboard/backend
+        run: |
+          python -m pip install -e ../..
+          python -m pip install -e ".[dev]"
+      - name: pytest
+        working-directory: dashboard/backend
+        run: python -m pytest tests -q -p no:cacheprovider
+
+  audit:
+    name: dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e ".[dev,broker]"
+      - name: pip-audit (full resolved environment)
+        # Non-blocking: an advisory published upstream against a transitive dev
+        # dependency should not break an unrelated pull request. It is still
+        # surfaced in the run summary, and SECURITY.md defines the triage path.
+        continue-on-error: true
+        run: python -m pip_audit --progress-spinner=off --desc
+
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0     # gitleaks needs history to scan past commits
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
+  build:
+    name: build + install from wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build
+      - run: python -m build
+      - name: Install the wheel into a clean venv and import it
+        # Catches packaging mistakes that an editable install hides, such as a
+        # missing package-data entry or a module left out of the wheel.
+        run: |
+          python -m venv /tmp/fresh
+          /tmp/fresh/bin/python -m pip install dist/*.whl
+          /tmp/fresh/bin/python - <<'PY'
+          import quantsys, quantsys.costs, quantsys.portfolio.sizing, quantsys.risk.engine
+          from quantsys.backtest import run_backtest
+          print("import OK", quantsys.__file__, run_backtest.__name__)
+          PY
+      - name: py.typed must ship in the wheel
+        run: |
+          python - <<'PY'
+          import glob, zipfile
+          wheel = glob.glob("dist/*.whl")[0]
+          names = zipfile.ZipFile(wheel).namelist()
+          assert "quantsys/py.typed" in names, names
+          print("py.typed present in", wheel)
+          PY
+
+  ci-ok:
+    # Single required status check, so branch protection does not need updating
+    # every time the matrix changes.
+    name: CI passed
+    if: always()
+    needs: [lint, test, dashboard, audit, secrets, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any required job failed
+        run: |
+          echo '${{ toJSON(needs) }}'
+          if echo '${{ toJSON(needs) }}' | grep -q '"result": *"failure"'; then
+            echo "a required job failed"; exit 1
+          fi
+          if echo '${{ toJSON(needs) }}' | grep -q '"result": *"cancelled"'; then
+            echo "a required job was cancelled"; exit 1
+          fi
+          echo "all required jobs passed"

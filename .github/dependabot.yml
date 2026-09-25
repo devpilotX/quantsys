@@ -1,0 +1,42 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for the numerical stack. These move together and must be
+      # evaluated together: a numpy bump that changes dtype promotion is not
+      # reviewable in isolation from the pandas and scipy versions it runs with.
+      numerical-stack:
+        patterns: ["numpy", "pandas", "scipy", "statsmodels"]
+      dev-tooling:
+        patterns: ["ruff", "mypy", "pytest*", "hypothesis", "pip-audit", "pre-commit", "types-*"]
+    ignore:
+      # Pinned deliberately, with evidence, in pyproject.toml: smartapi-python
+      # 1.5.5 requires a websocket-client that passes the ws handle to every
+      # callback AND calls on_close with only ws. 0.59.0 is the one version that
+      # does both. An automated bump here silently breaks the live tick feed.
+      - dependency-name: "smartapi-python"
+      - dependency-name: "websocket-client"
+
+  - package-ecosystem: pip
+    directory: "/dashboard/backend"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: "/dashboard/frontend"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly

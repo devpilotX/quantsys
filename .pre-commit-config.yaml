@@ -1,0 +1,88 @@
+# Pre-commit hooks.
+#
+# Install once:  pre-commit install && pre-commit install --hook-type pre-push
+# Run on everything:  pre-commit run --all-files
+#
+# The secret-scanning hooks are not decoration. This repository had a real
+# credential exposure on 2026-06-11 (see SECURITY.md), the .gitignore carries
+# five separate rules written specifically to keep credential-bearing files and
+# rendered exports out of history, and the engine talks to a live brokerage
+# account. A leak here is money, not embarrassment.
+
+default_install_hook_types: [pre-commit, pre-push]
+fail_fast: false
+
+repos:
+  # ------------------------------------------------------- secrets first
+  # Ordered first deliberately: if a commit contains a credential, the author
+  # should learn that before wading through formatting output.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.2
+    hooks:
+      - id: gitleaks
+        name: gitleaks (staged changes)
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: detect-private-key
+      - id: check-added-large-files
+        # Bhavcopy panels and DB dumps belong in data_cache/ and deploy/backups/,
+        # both gitignored. A large file in a commit is almost always an accident.
+        args: [--maxkb=512]
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-symlinks
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-yaml
+        # The systemd/nginx templates and compose overrides contain intentional
+        # multi-document and template syntax.
+        args: [--allow-multiple-documents]
+      - id: check-toml
+      - id: check-json
+        exclude: ^dashboard/frontend/(tsconfig|jsconfig)\.json$
+      - id: check-executables-have-shebangs
+      - id: debug-statements        # no stray breakpoint() in a trading loop
+
+  # ------------------------------------------------------- lint + format
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.4
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+
+  # ------------------------------------------------------- types
+  # Local hook rather than mirrors/mypy: mypy must run against the project's
+  # real resolved dependency set (numpy and pydantic ship the stubs and the
+  # plugin that make the result meaningful), not an isolated hook venv.
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (project environment)
+        entry: python -m mypy
+        language: system
+        types: [python]
+        pass_filenames: false
+        files: ^src/quantsys/
+
+      - id: pytest-fast
+        name: pytest (pre-push)
+        entry: python -m pytest tests -q -x -p no:cacheprovider -m "not network"
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      # Guardrail specific to this project: the research verdict is CLOSED and
+      # the live gate is closed. An accidental commit that arms live trading is
+      # the single most expensive mistake available here, so it is blocked
+      # mechanically rather than by memory.
+      - id: no-live-arming
+        name: refuse a committed live-arming flag
+        entry: python scripts/check_no_live_arming.py
+        language: system
+        pass_filenames: true
+        files: (\.env\.example|\.ya?ml|\.toml|\.service|\.sh|Dockerfile.*)$

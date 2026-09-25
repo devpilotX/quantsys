@@ -1,0 +1,19 @@
+# Every file requires review by the maintainer.
+* @devpilotX
+
+# Paths where a mistake is measured in money rather than inconvenience.
+# Listed explicitly so the intent survives a future change to the fallback rule.
+/src/quantsys/costs.py            @devpilotX
+/src/quantsys/portfolio/          @devpilotX
+/src/quantsys/risk/               @devpilotX
+/src/quantsys/engine/             @devpilotX
+/src/quantsys/execution/          @devpilotX
+/src/quantsys/backtest/           @devpilotX
+
+# Security-relevant surfaces.
+/SECURITY.md                      @devpilotX
+/.github/workflows/               @devpilotX
+/.pre-commit-config.yaml          @devpilotX
+/scripts/check_no_live_arming.py  @devpilotX
+/dashboard/backend/qsdash/api/    @devpilotX
+/deploy/                          @devpilotX
