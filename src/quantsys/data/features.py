@@ -53,15 +53,24 @@ def ewma_vol(returns: np.ndarray, halflife: float) -> float:
 
 
 def ewma_vol_series(returns: np.ndarray, halflife: float) -> np.ndarray:
-    """Full recursive EWMA vol series, var[0] seeded with overall variance."""
+    """Full recursive EWMA vol series, var[0] seeded with overall variance.
+
+    The seed uses an explicit finite check rather than `float(np.nanvar(r)) or
+    1e-12`: NaN is truthy, so the `or` idiom passes an all-NaN input straight
+    through as a NaN seed, which then poisons every subsequent value and flows
+    into the regime feature vector unnoticed (np.clip does not remove NaN).
+    """
     r = np.asarray(returns, dtype=float)
     if r.size == 0:
         return r
     lam = ewma_lambda(halflife)
     out = np.empty(r.size)
-    v = float(np.nanvar(r)) or 1e-12
+    finite = r[np.isfinite(r)]
+    seed = float(np.var(finite)) if finite.size else float("nan")
+    v = seed if math.isfinite(seed) and seed > 0.0 else 1e-12
     for i, x in enumerate(r):
-        v = lam * v + (1.0 - lam) * x * x
+        xx = x * x if math.isfinite(x) else 0.0
+        v = lam * v + (1.0 - lam) * xx
         out[i] = math.sqrt(v)
     return out
 
@@ -127,7 +136,7 @@ def corr_from_cov(S: np.ndarray) -> np.ndarray:
     return np.clip(C, -1.0, 1.0)
 
 
-def aligned_close_matrix(histories: dict[str, "object"], symbols: list[str], window: int) -> np.ndarray | None:
+def aligned_close_matrix(histories: dict[str, object], symbols: list[str], window: int) -> np.ndarray | None:
     """Stack last `window` closes for symbols into (window, K); None if any lacks data."""
     cols = []
     for s in symbols:

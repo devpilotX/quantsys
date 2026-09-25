@@ -17,6 +17,9 @@ Multi-leg representation: ONE signal, parent leg A ratio +1.0, leg B ratio
 
 from __future__ import annotations
 
+import functools
+import inspect
+import logging
 import math
 from itertools import combinations
 
@@ -27,7 +30,66 @@ from quantsys.core.market_state import MarketState
 from quantsys.core.types import InstrumentKind, LegSpec, Signal
 from quantsys.strategies.base import Strategy, register
 
+log = logging.getLogger("quantsys.strategies.meanrev")
+
 _TRADEABLE = {InstrumentKind.EQUITY, InstrumentKind.FUTURE}
+
+# statsmodels is mid-migration on adfuller's return contract: <=0.15 returns a
+# plain tuple and warns, 0.16+ returns an ADFullerResult. Passing
+# result_object=False pins the tuple form on every version that accepts the
+# kwarg. The capability is detected by signature inspection and cached per
+# function object, so it is deterministic and cannot be poisoned by import
+# order (or by a test that patches adfuller).
+@functools.lru_cache(maxsize=8)
+def _accepts_result_object(fn: object) -> bool:
+    try:
+        return "result_object" in inspect.signature(fn).parameters  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return False
+
+
+def _positive_or(value: float, fallback: float) -> float:
+    """Return `value` if it is finite and strictly positive, else `fallback`.
+
+    Replaces the `float(x) or default` idiom, which is a NaN trap: NaN is
+    truthy in Python, so `nan or 1e-9` evaluates to nan and propagates a
+    poisoned denominator downstream instead of substituting the default.
+    """
+    return value if math.isfinite(value) and value > 0.0 else fallback
+
+
+def _adf_pvalue(resid: np.ndarray) -> float | None:
+    """Engle-Granger ADF p-value on a residual series, or None if the test
+    could not be computed.
+
+    This is the gate the entire pairs sleeve depends on, so a failure must be
+    *observable*. A bare `except Exception: return None` here would make a
+    library contract change (or a degenerate residual) indistinguishable from
+    the honest answer "no cointegrated pair exists" — which is exactly the
+    state this sleeve reports in production. Failures are logged and the
+    exception types are narrowed to the genuine numerical ones.
+    """
+    from statsmodels.tsa.stattools import adfuller
+
+    kwargs = {"regression": "c", "autolag": "AIC"}
+    if _accepts_result_object(adfuller):
+        kwargs["result_object"] = False
+
+    try:
+        res = adfuller(resid, **kwargs)
+    except (ValueError, ZeroDivisionError, np.linalg.LinAlgError) as e:
+        log.warning("ADF test could not be computed on a %d-point residual: %s", len(resid), e)
+        return None
+
+    # Tolerate either contract even when the kwarg was accepted.
+    pvalue = getattr(res, "pvalue", None)
+    if pvalue is None:
+        pvalue = res[1]
+    p = float(pvalue)
+    if not math.isfinite(p):
+        log.warning("ADF returned a non-finite p-value (%r); treating pair as unusable", pvalue)
+        return None
+    return p
 
 
 @register("meanrev")
@@ -162,13 +224,8 @@ class MeanRevStrategy(Strategy):
         alpha = float(y.mean() - beta * x.mean())
         resid = y - (alpha + beta * x)
 
-        from statsmodels.tsa.stattools import adfuller
-
-        try:
-            pvalue = float(adfuller(resid, regression="c", autolag="AIC")[1])
-        except Exception:
-            return None
-        if pvalue > cfg.adf_alpha:
+        pvalue = _adf_pvalue(resid)
+        if pvalue is None or pvalue > cfg.adf_alpha:
             return None
 
         kappa_full, hl = self._ou_kappa(resid)
@@ -186,7 +243,7 @@ class MeanRevStrategy(Strategy):
         return {
             "beta": beta,
             "theta": alpha + float(resid.mean()),  # == alpha; resid mean ~ 0
-            "sigma_eq": float(resid.std()) or 1e-9,
+            "sigma_eq": _positive_or(float(resid.std()), 1e-9),
             "half_life": hl,
             "pvalue": pvalue,
         }
