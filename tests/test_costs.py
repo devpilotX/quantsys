@@ -1,9 +1,9 @@
 import pytest
+from tests.conftest import make_inst
 
 from quantsys.config.schema import CostConfig
 from quantsys.core.types import InstrumentKind
 from quantsys.costs import CostModel
-from tests.conftest import make_inst
 
 
 @pytest.fixture

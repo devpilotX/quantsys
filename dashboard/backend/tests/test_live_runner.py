@@ -7,9 +7,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 import pytest
+from tests.conftest import REPO_ROOT
 
 from quantsys.execution.marketdata import BarAggregator, floor_to_bucket
-from tests.conftest import REPO_ROOT
 
 CFG = str(REPO_ROOT / "config" / "base.yaml")
 
@@ -74,8 +74,9 @@ _MASTER = [
 @pytest.fixture()
 def live_runner(db, monkeypatch):
     monkeypatch.setenv("QS_LIVE_ARMED", "1")
-    from quantsys.execution.angelone import AngelOneBroker
     from qsdash.bridge.live import LiveRunner
+
+    from quantsys.execution.angelone import AngelOneBroker
 
     adapter = AngelOneBroker(api_key="k", client_code="c", mpin="1",
                              totp_secret="JBSWY3DPEHPK3PXP",
@@ -138,14 +139,15 @@ def test_durable_paper_capital_applied_on_startup(db):
     """A paper-capital set via the control plane (runtime_config 'paper_capital')
     is re-applied on engine restart, so a terminal-set float survives a bare
     restart instead of silently reverting to the --capital bootstrap default."""
-    from quantsys.config import load_config
-    from quantsys.engine.decision import DecisionEngine
-    from quantsys.execution.angelone import AngelOneBroker
     from qsdash.bridge.live import LiveRunner
     from qsdash.bridge.paper import PaperBroker
     from qsdash.bus import make_sync_publisher
     from qsdash.db import SessionLocal
     from qsdash.models import RuntimeConfig
+
+    from quantsys.config import load_config
+    from quantsys.engine.decision import DecisionEngine
+    from quantsys.execution.angelone import AngelOneBroker
 
     db.query(RuntimeConfig).filter(RuntimeConfig.key.in_(
         ("paper_capital", "paper_capital_applied", "paper_broker_state"))
@@ -273,9 +275,10 @@ def test_paused_runner_records_bars_but_skips_decisions(db, monkeypatch):
     strategies stay warm for resume."""
     from datetime import datetime
 
-    from quantsys.core.types import Bar
     from qsdash.bridge.runner import Runner
     from qsdash.models import RuntimeConfig
+
+    from quantsys.core.types import Bar
 
     db.query(RuntimeConfig).filter(RuntimeConfig.key == "engine_paused").delete()
     db.commit()

@@ -151,7 +151,7 @@ class TiersConfig(BaseModel):
     ladder: list[TierConfig] = []
 
     @model_validator(mode="after")
-    def _default_ladder(self) -> "TiersConfig":
+    def _default_ladder(self) -> TiersConfig:
         if not self.ladder:
             self.ladder = _DEFAULT_LADDER()
         thresholds = [t.min_equity for t in self.ladder]
@@ -412,7 +412,7 @@ def load_config(*paths: str | Path) -> AppConfig:
     """Load and deep-merge YAML files left-to-right, validate into AppConfig."""
     merged: dict[str, Any] = {}
     for p in paths:
-        with open(p, "r", encoding="utf-8") as fh:
+        with open(p, encoding="utf-8") as fh:
             doc = yaml.safe_load(fh) or {}
         merged = _deep_merge(merged, doc)
     return AppConfig.model_validate(merged)

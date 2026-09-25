@@ -14,12 +14,11 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
+from conftest import make_hist, make_inst, make_state
 from quantsys.config.schema import AppConfig, FactorConfig
 from quantsys.core.market_state import MarketState
 from quantsys.strategies.base import REGISTRY
 from quantsys.strategies.factor import FactorStrategy
-
-from conftest import make_hist, make_inst, make_state
 
 _STATE_DAY = datetime(2026, 1, 5)   # conftest ts_seq starts sessions here
 

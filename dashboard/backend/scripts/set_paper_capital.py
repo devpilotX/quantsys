@@ -3,9 +3,8 @@ control API; this is for bootstrapping a dev session)."""
 
 import sys
 
-from sqlalchemy import text
-
 from qsdash.db import SessionLocal
+from sqlalchemy import text
 
 capital = float(sys.argv[1]) if len(sys.argv) > 1 else 50_000_000.0
 s = SessionLocal()

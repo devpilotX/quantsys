@@ -5,9 +5,10 @@ layer — this is what makes 'same code in backtest and live' true.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Mapping
+from typing import Any
 
 from quantsys.core.types import Instrument, Position
 from quantsys.data.history import BarHistory
@@ -30,7 +31,7 @@ class MarketState:
         hist = self.bars.get(symbol)
         return len(hist) if hist is not None else 0
 
-    def restricted(self, symbols: set[str]) -> "MarketState":
+    def restricted(self, symbols: set[str]) -> MarketState:
         """View limited to a universe subset (tier gating). Cheap: shares arrays."""
         return MarketState(
             ts=self.ts,

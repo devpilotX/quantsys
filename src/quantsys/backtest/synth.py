@@ -10,8 +10,8 @@ point-in-time NSE history via the execution layer's historical fetcher.
 from __future__ import annotations
 
 import math
+from collections.abc import Iterator
 from datetime import datetime, timedelta
-from typing import Iterator
 
 import numpy as np
 
@@ -85,7 +85,7 @@ def replay_bars(directory: str, symbols: list[str]
         rows.sort(key=lambda b: b.ts)
         streams[sym] = rows
     all_ts = sorted({b.ts for rows in streams.values() for b in rows})
-    idx = {sym: 0 for sym in streams}
+    idx = dict.fromkeys(streams, 0)
     for ts in all_ts:
         out: dict[str, Bar] = {}
         for sym, rows in streams.items():

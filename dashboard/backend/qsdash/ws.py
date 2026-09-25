@@ -107,11 +107,11 @@ async def websocket_endpoint(ws: WebSocket):
         while True:
             try:
                 await asyncio.wait_for(ws.receive_text(), timeout=20)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 await ws.send_json({"type": "ping"})
     except WebSocketDisconnect:
         pass
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         log.debug("ws closed: %s", e)
     finally:
         await hub.detach(ws)

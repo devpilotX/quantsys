@@ -3,9 +3,8 @@ dev session. Auth, audit, config and command tables are preserved.
 NEVER run against a live-mode database with real history you care about.
 """
 
-from sqlalchemy import text
-
 from qsdash.db import SessionLocal
+from sqlalchemy import text
 
 TABLES = [
     "fills", "orders", "positions", "decisions", "equity_curve",

@@ -19,7 +19,7 @@ covariance still enters implicitly through per-strategy Kelly stats.
 from __future__ import annotations
 
 import math
-from typing import Mapping
+from collections.abc import Mapping
 
 import numpy as np
 

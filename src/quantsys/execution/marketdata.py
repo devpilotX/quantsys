@@ -10,11 +10,11 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Callable
 
-from quantsys.core.types import Bar, SESSION_OPEN, is_session_open, now_ist
+from quantsys.core.types import SESSION_OPEN, Bar, is_session_open, now_ist
 
 log = logging.getLogger("quantsys.marketdata")
 

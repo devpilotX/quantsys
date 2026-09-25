@@ -1,10 +1,10 @@
 import numpy as np
+from tests.conftest import gbm, make_hist, make_inst, make_state
 
 from quantsys.config.schema import RegimeConfig
 from quantsys.core.types import InstrumentKind
 from quantsys.regime.detector import RegimeDetector
 from quantsys.regime.hmm import filtered_probs, fit_hmm
-from tests.conftest import gbm, make_hist, make_inst, make_state
 
 
 def test_hmm_recovers_two_state_structure():

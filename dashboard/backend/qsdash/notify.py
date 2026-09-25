@@ -63,7 +63,7 @@ def _telegram(severity: str, title: str, body: str) -> dict:
 
 
 # --------------------------------------------------------- async delivery
-_Q: "queue.Queue[tuple[int, str, str, str]] | None" = None
+_Q: queue.Queue[tuple[int, str, str, str]] | None = None
 _worker_lock = threading.Lock()
 
 # Per-kind delivery rate-limit. The feed stale/recovered flap raised an alert on
@@ -86,7 +86,7 @@ def _delivery_allowed(kind: str, severity: str) -> bool:
         return True
 
 
-def _ensure_worker() -> "queue.Queue":
+def _ensure_worker() -> queue.Queue:
     global _Q
     with _worker_lock:
         if _Q is None:

@@ -14,8 +14,6 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from quantsys.core.types import Decision, to_jsonable
-
 from qsdash.bus import PgSyncPublisher, SyncPublisher, make_sync_publisher
 from qsdash.db import SessionLocal, now_ist
 from qsdash.models import (
@@ -27,6 +25,7 @@ from qsdash.models import (
     RiskEvent,
     StrategyStat,
 )
+from quantsys.core.types import Decision, to_jsonable
 
 log = logging.getLogger(__name__)
 

@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 
 
 class CommandConsumer:
-    def __init__(self, runner: "Runner", publisher: SyncPublisher):
+    def __init__(self, runner: Runner, publisher: SyncPublisher):
         self.runner = runner
         self.publisher = publisher
 
@@ -48,7 +48,7 @@ class CommandConsumer:
                     cmd.status = "rejected"
                     cmd.result = {"ok": False, "reason": str(r)}
                     log.warning("command %s rejected: %s", cmd.kind, r)
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     cmd.status = "rejected"
                     cmd.result = {"ok": False, "reason": f"error: {e}"}
                     log.exception("command %s failed", cmd.kind)

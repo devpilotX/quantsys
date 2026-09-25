@@ -28,15 +28,6 @@ import threading
 import time
 from datetime import datetime, timedelta
 
-from quantsys.config import load_config
-from quantsys.core.market_state import MarketState
-from quantsys.core.types import Bar, InstrumentKind, Position, is_session_open
-from quantsys.data.history import BarHistory
-from quantsys.engine.decision import DecisionEngine
-from quantsys.execution.angelone import AngelOneBroker
-from quantsys.execution.broker import BrokerError
-from quantsys.execution.marketdata import BarAggregator
-
 from qsdash.audit import notify_alert
 from qsdash.bridge.commands import CommandConsumer
 from qsdash.bridge.livebroker import LiveExecutionBroker
@@ -45,6 +36,14 @@ from qsdash.bridge.recorder import Recorder
 from qsdash.bus import make_sync_publisher
 from qsdash.db import SessionLocal, now_ist
 from qsdash.models import RuntimeConfig
+from quantsys.config import load_config
+from quantsys.core.market_state import MarketState
+from quantsys.core.types import Bar, InstrumentKind, Position, is_session_open
+from quantsys.data.history import BarHistory
+from quantsys.engine.decision import DecisionEngine
+from quantsys.execution.angelone import AngelOneBroker
+from quantsys.execution.broker import BrokerError
+from quantsys.execution.marketdata import BarAggregator
 
 log = logging.getLogger("qsdash.live")
 
@@ -416,7 +415,7 @@ class LiveRunner:
             return
         # merge per-symbol candles into time-ordered batches (point-in-time)
         all_ts = sorted({r[0] for rows in per_sym.values() for r in rows})
-        idx = {s: 0 for s in per_sym}
+        idx = dict.fromkeys(per_sym, 0)
         n = 0
         for ts in all_ts:
             for s, rows in per_sym.items():

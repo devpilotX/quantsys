@@ -1,12 +1,12 @@
 import numpy as np
 import pytest
+from tests.conftest import make_inst
 
 from quantsys.config.schema import ExposureConfig
 from quantsys.core.types import ExecutionStyle, LegSpec, Signal
 from quantsys.portfolio.book import Component, TargetBook
 from quantsys.portfolio.tiers import TierState
 from quantsys.risk.rules import RiskContext, apply_exposure_rules
-from tests.conftest import make_inst
 
 E = 1_000_000.0
 
@@ -56,7 +56,7 @@ def test_sector_cap():
     for s in ("B1", "B2", "B3"):
         book.add_group(_single(s, 2400.0, 100.0), Signal("s", s, 1.0, 1.0))  # 240k each
     insts = {s: make_inst(s, sector="banks") for s in ("B1", "B2", "B3")}
-    prices = {s: 100.0 for s in insts}
+    prices = dict.fromkeys(insts, 100.0)
     cfg = ExposureConfig(per_instrument_frac=0.25, sector_frac=0.50)
     audits = []
     apply_exposure_rules(book, _ctx(insts, prices, cfg=cfg), audits)
@@ -70,7 +70,7 @@ def test_corr_cluster_cap():
     for s in ("X", "Y"):
         book.add_group(_single(s, 3000.0, 100.0), Signal("s", s, 1.0, 1.0))  # 300k each
     insts = {s: make_inst(s, sector=s) for s in ("X", "Y")}  # distinct sectors
-    prices = {s: 100.0 for s in insts}
+    prices = dict.fromkeys(insts, 100.0)
     corr = np.array([[1.0, 0.95], [0.95, 1.0]])
     cfg = ExposureConfig(per_instrument_frac=0.5, sector_frac=1.0,
                          corr_threshold=0.7, corr_cluster_frac=0.40)
@@ -100,7 +100,7 @@ def test_gross_and_margin_caps_global():
     for s, q in (("X", 12_000.0), ("Y", -12_000.0)):
         book.add_group(_single(s, q, 100.0), Signal("s", s, 1.0, 1.0))  # 2.4m gross
     insts = {s: make_inst(s, sector=s, margin_rate=0.5) for s in ("X", "Y")}
-    prices = {s: 100.0 for s in insts}
+    prices = dict.fromkeys(insts, 100.0)
     cfg = ExposureConfig(per_instrument_frac=99.0, sector_frac=99.0,
                          corr_cluster_frac=99.0, net_frac=99.0, margin_util_cap=0.60)
     audits = []
@@ -118,7 +118,7 @@ def test_net_cap():
     for s in ("X", "Y"):
         book.add_group(_single(s, 9000.0, 100.0), Signal("s", s, 1.0, 1.0))  # net 1.8m
     insts = {s: make_inst(s, sector=s) for s in ("X", "Y")}
-    prices = {s: 100.0 for s in insts}
+    prices = dict.fromkeys(insts, 100.0)
     cfg = ExposureConfig(per_instrument_frac=99.0, sector_frac=99.0,
                          corr_cluster_frac=99.0, net_frac=1.5, margin_util_cap=99.0)
     apply_exposure_rules(book, _ctx(insts, prices, cfg=cfg, tier=_tier(lev=99.0)), [])

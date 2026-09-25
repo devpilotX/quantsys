@@ -1,7 +1,8 @@
+from tests.conftest import make_inst
+
 from quantsys.core.types import ExecutionStyle, Position, TargetPosition, Urgency
 from quantsys.engine.orders import diff_orders
 from quantsys.portfolio.tiers import TierState
-from tests.conftest import make_inst
 
 
 def _tier(band=0.2, style=ExecutionStyle.LIMIT_SMART):

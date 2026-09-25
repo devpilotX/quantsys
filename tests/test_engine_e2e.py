@@ -12,12 +12,12 @@ from __future__ import annotations
 import json
 
 import numpy as np
+from tests.conftest import cointegrated_pair, gbm, make_inst, ts_seq
 
 from quantsys.core.market_state import MarketState
 from quantsys.core.types import Bar, InstrumentKind, Position
 from quantsys.data.history import BarHistory
 from quantsys.engine.decision import DecisionEngine
-from tests.conftest import cointegrated_pair, gbm, make_inst, ts_seq
 
 N = 700
 WARM = 320

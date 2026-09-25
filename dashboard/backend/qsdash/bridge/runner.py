@@ -24,18 +24,17 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
+from qsdash.bridge.commands import CommandConsumer
+from qsdash.bridge.paper import PaperBroker
+from qsdash.bridge.recorder import Recorder
+from qsdash.bus import make_sync_publisher
+from qsdash.db import SessionLocal, now_ist
+from qsdash.models import RuntimeConfig
 from quantsys.config import load_config
 from quantsys.core.market_state import MarketState
 from quantsys.core.types import Bar, Position, is_session_open
 from quantsys.data.history import BarHistory
 from quantsys.engine.decision import DecisionEngine
-
-from qsdash.bus import make_sync_publisher
-from qsdash.bridge.commands import CommandConsumer
-from qsdash.bridge.paper import PaperBroker
-from qsdash.bridge.recorder import Recorder
-from qsdash.db import SessionLocal, now_ist
-from qsdash.models import RuntimeConfig
 
 log = logging.getLogger("qsdash.runner")
 
@@ -278,7 +277,7 @@ def replay_bars(directory: str, symbols: list[str]):
                 ))
         streams[sym] = rows
     all_ts = sorted({b.ts for rows in streams.values() for b in rows})
-    idx = {sym: 0 for sym in streams}
+    idx = dict.fromkeys(streams, 0)
     for ts in all_ts:
         out = {}
         for sym, rows in streams.items():

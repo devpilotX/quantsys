@@ -32,7 +32,7 @@ async def main() -> None:
         while asyncio.get_event_loop().time() < deadline and sum(got.values()) < 8:
             try:
                 raw = await asyncio.wait_for(ws.recv(), timeout=10)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
             ev = json.loads(raw)
             if ev.get("type") == "event":

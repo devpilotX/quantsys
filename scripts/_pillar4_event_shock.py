@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from datetime import date
 
-
 from quantsys.config import load_config
 from quantsys.core.types import InstrumentKind
 from quantsys.research.bhavcopy import build_panel, close_panel

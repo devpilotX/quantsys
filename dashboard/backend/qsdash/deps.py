@@ -14,8 +14,8 @@ Security model (single operator, real money):
 from __future__ import annotations
 
 import ipaddress
+from collections.abc import Generator
 from datetime import timedelta
-from typing import Generator
 
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session

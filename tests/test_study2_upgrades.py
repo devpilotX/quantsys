@@ -10,6 +10,7 @@ from datetime import date, datetime, timedelta
 
 import numpy as np
 
+from conftest import make_hist, make_inst, make_state
 from quantsys.config.schema import (
     AppConfig,
     DownShockConfig,
@@ -23,8 +24,6 @@ from quantsys.strategies.base import REGISTRY, OnlineEdgeStats
 from quantsys.strategies.downshock import DownShockStrategy
 from quantsys.strategies.reversal import ReversalStrategy
 from quantsys.strategies.tom import TomStrategy, tom_window_active
-
-from conftest import make_hist, make_inst, make_state
 
 
 # ------------------------------------------------------- aggregator flush
@@ -222,10 +221,10 @@ def test_downshock_decluster_and_concurrency_cap():
         strat.seed_daily(s, _noisy_seed(60, day0 - timedelta(days=1)))
     # all 7 crash with slightly different magnitudes on 3x volume
     st0 = _daily_state(day0, {s: 92.0 - i * 0.1 for i, s in enumerate(syms)},
-                       {s: 3e6 for s in syms}, insts)
+                       dict.fromkeys(syms, 3000000.0), insts)
     strat.generate_signals(st0)
-    st1 = _daily_state(day0 + timedelta(days=1), {s: 91.0 for s in syms},
-                       {s: 1e6 for s in syms}, insts)
+    st1 = _daily_state(day0 + timedelta(days=1), dict.fromkeys(syms, 91.0),
+                       dict.fromkeys(syms, 1000000.0), insts)
     sigs = strat.generate_signals(st1)
     assert len(sigs) == 5                              # concurrency cap binds
     # deepest z first: S6 (largest drop) must be in, S0 (smallest) out
@@ -234,10 +233,10 @@ def test_downshock_decluster_and_concurrency_cap():
 
     # de-cluster: another crash in the same names within 30d is ignored
     st2 = _daily_state(day0 + timedelta(days=2),
-                       {s: 84.0 for s in syms}, {s: 3e6 for s in syms}, insts)
+                       dict.fromkeys(syms, 84.0), dict.fromkeys(syms, 3000000.0), insts)
     strat.generate_signals(st2)
-    st3 = _daily_state(day0 + timedelta(days=3), {s: 84.0 for s in syms},
-                       {s: 1e6 for s in syms}, insts)
+    st3 = _daily_state(day0 + timedelta(days=3), dict.fromkeys(syms, 84.0),
+                       dict.fromkeys(syms, 1000000.0), insts)
     sigs3 = strat.generate_signals(st3)
     assert {s.symbol for s in sigs3} <= got            # no NEW names entered
 

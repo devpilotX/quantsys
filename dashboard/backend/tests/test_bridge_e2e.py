@@ -8,7 +8,6 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pytest
-
 from qsdash.bridge.runner import Runner, synthetic_bars
 from qsdash.db import now_ist
 from qsdash.models import (

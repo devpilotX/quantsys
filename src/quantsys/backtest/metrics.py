@@ -46,7 +46,7 @@ def compute_metrics(daily_equity: list[tuple[object, float]],
                     gross_samples: list[float] | None = None,
                     equity_samples: list[float] | None = None) -> dict:
     eq = np.array([v for _, v in daily_equity], dtype=float)
-    out: dict = {"n_days": int(len(eq))}
+    out: dict = {"n_days": len(eq)}
     if len(eq) < 3:
         out["insufficient_data"] = True
         return out

@@ -1,4 +1,5 @@
 import pytest
+from tests.conftest import gbm, make_hist, make_inst, make_state
 
 from quantsys.config.schema import CostConfig, SizingConfig
 from quantsys.core.types import (
@@ -11,7 +12,6 @@ from quantsys.core.types import (
 from quantsys.costs import CostModel
 from quantsys.portfolio.sizing import SizingEngine
 from quantsys.portfolio.tiers import TierState
-from tests.conftest import gbm, make_hist, make_inst, make_state
 
 
 def _tier(min_cost_multiple=0.0, adv_cap_pct=1.0, band=0.2, lev=2.0) -> TierState:
@@ -64,7 +64,7 @@ def test_pair_legs_hedge_ratio_exact():
 
 
 def test_lot_rounding_floors_and_drops_zero():
-    state = _state_with({"F": 100.0}, **{"kind": InstrumentKind.FUTURE, "lot_size": 65})
+    state = _state_with({"F": 100.0}, kind=InstrumentKind.FUTURE, lot_size=65)
     sig = Signal("s", "F", 1.0, stop_distance=10.0)
     book = _sizer().build_raw([sig], {"s": 1.0}, 3000.0, state, [])  # 300 raw
     targets = _sizer().finalize(book, _tier(), state, {}, {}, [])
@@ -76,8 +76,7 @@ def test_lot_rounding_floors_and_drops_zero():
 
 
 def test_pair_dropped_whole_if_one_leg_rounds_to_zero():
-    state = _state_with({"A": 100.0, "B": 50.0}, **{"kind": InstrumentKind.FUTURE,
-                                                    "lot_size": 500})
+    state = _state_with({"A": 100.0, "B": 50.0}, kind=InstrumentKind.FUTURE, lot_size=500)
     sig = Signal("mr", "A", 1.0, 5.0, legs=(LegSpec("A", 1.0), LegSpec("B", -0.01)))
     book = _sizer().build_raw([sig], {"mr": 1.0}, 5000.0, state, [])
     targets = _sizer().finalize(book, _tier(), state, {}, {}, [])
@@ -128,7 +127,7 @@ def test_min_lot_promotion_unlocks_single_future_lot():
     promotion_max_risk_frac of equity. (Promotion off => stays untraded, see
     test_lot_rounding_floors_and_drops_zero.)"""
     state = _state_with({"F": 100.0}, equity=50_000_000.0,
-                        **{"kind": InstrumentKind.FUTURE, "lot_size": 65})
+                        kind=InstrumentKind.FUTURE, lot_size=65)
     sizer = SizingEngine(SizingConfig(min_lot_promotion=True),
                          CostModel(CostConfig()), 0.0)
     for direction, want in ((1.0, 65), (-1.0, -65)):
@@ -144,7 +143,7 @@ def test_min_lot_promotion_respects_equity_risk_cap():
     """The promoted lot must NEVER breach the risk ceiling: at a small float
     one lot is genuinely too big and the honest answer stays no-trade."""
     state = _state_with({"F": 100.0}, equity=100_000.0,
-                        **{"kind": InstrumentKind.FUTURE, "lot_size": 65})
+                        kind=InstrumentKind.FUTURE, lot_size=65)
     sizer = SizingEngine(SizingConfig(min_lot_promotion=True),
                          CostModel(CostConfig()), 0.0)
     sig = Signal("s", "F", 1.0, stop_distance=10.0)     # lot risk 650 > 0.5% of 1e5
@@ -159,7 +158,7 @@ def test_min_lot_promotion_never_touches_spread_legs():
     """Promoting one leg of a pair would corrupt the hedge ratio — multi-leg
     groups are excluded from promotion and still drop whole."""
     state = _state_with({"A": 100.0, "B": 50.0}, equity=50_000_000.0,
-                        **{"kind": InstrumentKind.FUTURE, "lot_size": 500})
+                        kind=InstrumentKind.FUTURE, lot_size=500)
     sizer = SizingEngine(SizingConfig(min_lot_promotion=True),
                          CostModel(CostConfig()), 0.0)
     sig = Signal("mr", "A", 1.0, 5.0, legs=(LegSpec("A", 1.0), LegSpec("B", -0.01)))

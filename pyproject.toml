@@ -1,19 +1,54 @@
 [project]
 name = "quantsys"
-version = "0.1.0"
+version = "0.2.0"
 description = "Auto-adaptive systematic trading system for Indian markets (NSE/BSE) via Angel One SmartAPI"
+readme = "README.md"
 requires-python = ">=3.11"
-dependencies = [
-    "numpy>=1.26",
-    "pandas>=2.2",
-    "scipy>=1.12",
-    "statsmodels>=0.14",
-    "pydantic>=2.7",
-    "PyYAML>=6.0",
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "devpilotX", email = "devpilotx@gmail.com" }]
+keywords = ["quantitative-finance", "algorithmic-trading", "backtesting", "nse", "india"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Typing :: Typed",
 ]
 
+# Upper bounds are deliberate. The numerical stack is load-bearing for every
+# reported P&L number, and a silent major bump (numpy 2, pandas 3) changes
+# dtype/NaN/copy semantics underneath the cost and sizing math. Bounds here
+# express "known-compatible range"; exact reproducible pins live in
+# constraints/*.txt and are what CI and the VPS install. See docs/ENVIRONMENT.md.
+dependencies = [
+    "numpy>=1.26,<3",
+    "pandas>=2.2,<4",
+    "scipy>=1.12,<2",
+    "statsmodels>=0.14,<1",
+    "pydantic>=2.7,<3",
+    "PyYAML>=6.0,<7",
+]
+
+[project.urls]
+Homepage = "https://github.com/devpilotX/quant"
+Repository = "https://github.com/devpilotX/quant"
+Issues = "https://github.com/devpilotX/quant/issues"
+
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "ruff>=0.4"]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "hypothesis>=6.100",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "pip-audit>=2.7",
+    "pre-commit>=3.7",
+    "types-PyYAML>=6.0",
+]
 # Execution layer (next phase) — kept out of core so the brain has zero broker deps.
 # PINNED 2026-06-26: smartapi-python 1.5.5's SmartWebSocketV2 binds ws-first socket
 # callbacks: _on_open(self, wsapp), _on_close(self, wsapp), _on_pong(self, wsapp,
@@ -41,10 +76,90 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+quantsys = ["py.typed"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q --strict-markers --strict-config"
+xfail_strict = true
+filterwarnings = [
+    "error::DeprecationWarning:quantsys.*",
+    "error::FutureWarning:quantsys.*",
+]
+markers = [
+    "slow: deselect with -m 'not slow'",
+    "network: requires internet access (NSE archive); deselected in CI",
+]
 
 [tool.ruff]
 line-length = 110
 target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "B",        # bugbear
+    "C4",       # comprehensions
+    "UP",       # pyupgrade
+    "SIM",      # simplify
+    "RUF",      # ruff-specific
+    "NPY",      # numpy-specific
+    "PIE",
+    "PGH",      # blanket noqa / type-ignore
+]
+ignore = [
+    "E501",     # line length is enforced by the formatter
+    "B008",     # FastAPI Depends() in defaults is idiomatic
+    "SIM108",   # ternaries are not always clearer in numeric code
+    # This project is about Indian markets: the rupee sign and typographic
+    # dashes/quotes in docstrings and audit strings are intentional, not
+    # homoglyph mistakes.
+    "RUF001", "RUF002", "RUF003",
+    "UP031",    # %-formatting in logging calls is deliberate (lazy interpolation)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011"]
+"scripts/**" = ["T201"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/quantsys"]
+# Core numerical modules are held to a stricter bar than the broker/research
+# edges, which touch untyped third-party SDKs. Tightened module-by-module
+# rather than switched on globally — see docs/ENVIRONMENT.md.
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+strict_equality = true
+check_untyped_defs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "quantsys.core.*",
+    "quantsys.costs",
+    "quantsys.portfolio.*",
+    "quantsys.risk.*",
+    "quantsys.data.features",
+]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[tool.coverage.run]
+branch = true
+source = ["quantsys"]
+omit = ["*/research/run_*.py", "*/research/*_check.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]

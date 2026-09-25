@@ -7,7 +7,7 @@ add a config block. Nothing in portfolio/risk/engine changes.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Callable
+from collections.abc import Callable
 
 from quantsys.core.market_state import MarketState
 from quantsys.core.types import Signal

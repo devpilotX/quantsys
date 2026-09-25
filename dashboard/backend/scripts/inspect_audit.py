@@ -1,8 +1,7 @@
 import json
 
-from sqlalchemy import text
-
 from qsdash.db import SessionLocal
+from sqlalchemy import text
 
 s = SessionLocal()
 n_sig = s.execute(text(

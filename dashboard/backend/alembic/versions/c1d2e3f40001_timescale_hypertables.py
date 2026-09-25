@@ -4,14 +4,14 @@ market_bars and equity_curve are the high-cardinality time series. Converting
 is conditional so the same migration chain runs on vanilla Postgres (local
 dev) and TimescaleDB (production).
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
 revision: str = "c1d2e3f40001"
-down_revision: Union[str, None] = "b3ea7b500e54"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "b3ea7b500e54"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 _UP = """
 DO $$

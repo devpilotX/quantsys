@@ -7,9 +7,9 @@ is asserted every bar — any drift is a bug, not noise.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Iterable
 
 from quantsys.backtest.simbroker import ClosedTrade, SimBroker
 from quantsys.config.schema import AppConfig

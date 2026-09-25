@@ -22,5 +22,5 @@ def load_state(path: str | Path) -> dict | None:
     path = Path(path)
     if not path.exists():
         return None
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         return json.load(fh)

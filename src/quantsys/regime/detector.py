@@ -43,7 +43,7 @@ class RegimeDetector:
         if self._params is not None and not self._params.degenerate:
             Z = self._standardize(X[-self.cfg.train_window :])
             p_states = filtered_probs(self._params, Z)
-            probs = {lab: 0.0 for lab in LABELS}
+            probs = dict.fromkeys(LABELS, 0.0)
             for k, p in enumerate(p_states):
                 probs[self._label_map[k]] += float(p)
             return self._compose(probs, "hmm")

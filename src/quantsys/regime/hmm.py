@@ -39,7 +39,7 @@ class HMMParams:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "HMMParams":
+    def from_dict(cls, d: dict) -> HMMParams:
         return cls(
             startprob=np.array(d["startprob"]),
             transmat=np.array(d["transmat"]),

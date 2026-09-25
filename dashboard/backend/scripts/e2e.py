@@ -133,10 +133,10 @@ def main() -> int:
 
 
 def _live_events(args) -> tuple[bool, str]:
+    import asyncio
     import json
 
     import websockets
-    import asyncio
 
     c = httpx.Client(base_url=args.api, timeout=20)
     r = c.post("/api/auth/login", json={
@@ -165,7 +165,7 @@ def _live_events(args) -> tuple[bool, str]:
                 while asyncio.get_event_loop().time() < end and sum(got.values()) < 5:
                     try:
                         m = await asyncio.wait_for(ws.recv(), timeout=8)
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         continue
                     ev = json.loads(m)
                     if ev.get("type") == "event":

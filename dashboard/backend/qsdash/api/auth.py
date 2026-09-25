@@ -168,4 +168,4 @@ def reauth(body: ReauthBody, request: Request, db: Session = Depends(get_db),
 
 
 # imported for type re-export convenience in main.py
-__all__ = ["router", "current_user"]
+__all__ = ["current_user", "router"]

@@ -95,7 +95,7 @@ class BarHistory:
         }
 
     @classmethod
-    def from_arrays(cls, ts: np.ndarray, o, h, lo, c, v=None, capacity: int | None = None) -> "BarHistory":
+    def from_arrays(cls, ts: np.ndarray, o, h, lo, c, v=None, capacity: int | None = None) -> BarHistory:
         n = len(c)
         hist = cls(capacity or max(n + 16, 256))
         end = hist._start

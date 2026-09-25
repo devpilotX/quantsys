@@ -1,13 +1,12 @@
 import numpy as np
 import pytest
+from tests.conftest import make_inst
 
 from quantsys.config.schema import KellyConfig, VolTargetConfig
-from quantsys.core.types import RegimeState, bars_per_year
+from quantsys.core.types import LegSpec, RegimeState, Signal, bars_per_year
 from quantsys.portfolio.allocation import KellyAllocator, VolTargeter
 from quantsys.portfolio.book import Component, TargetBook
-from quantsys.core.types import LegSpec, Signal
 from quantsys.strategies.base import OnlineEdgeStats
-from tests.conftest import make_inst
 
 NEUTRAL = RegimeState("calm_range", {"calm_range": 1.0}, 1.0, {}, "test")
 

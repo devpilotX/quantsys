@@ -26,7 +26,6 @@ from quantsys.backtest.metrics import compute_metrics, deflated_sharpe, monte_ca
 from quantsys.config.schema import CostConfig
 from quantsys.core.types import Instrument, InstrumentKind
 from quantsys.costs import CostModel
-
 from quantsys.research import factors as F
 
 

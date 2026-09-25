@@ -40,7 +40,6 @@ from quantsys.portfolio.tiers import TierLadder
 from quantsys.regime.detector import RegimeDetector
 from quantsys.risk.engine import RiskEngine
 from quantsys.risk.rules import RiskContext, apply_exposure_rules
-from quantsys.strategies.base import REGISTRY, OnlineEdgeStats, Strategy
 
 # import for side effect: strategy registration
 from quantsys.strategies import downshock as _downshock  # noqa: F401
@@ -51,6 +50,7 @@ from quantsys.strategies import reversal as _reversal  # noqa: F401
 from quantsys.strategies import tom as _tom  # noqa: F401
 from quantsys.strategies import trend as _trend  # noqa: F401
 from quantsys.strategies import voloptions as _voloptions  # noqa: F401
+from quantsys.strategies.base import REGISTRY, OnlineEdgeStats, Strategy
 
 _TRADEABLE = {InstrumentKind.EQUITY, InstrumentKind.FUTURE}
 
@@ -156,7 +156,7 @@ class DecisionEngine:
         # virtual unit book (f=1, un-throttled) for online edge stats
         scratch: list[AuditEvent] = []
         unit_book = self.sizer.build_raw(
-            signals, {n: 1.0 for n in active_names},
+            signals, dict.fromkeys(active_names, 1.0),
             state.equity * cfg.sizing.base_risk_frac, view, scratch,
         )
         unit_nets: dict[str, dict[str, float]] = {n: {} for n in active_names}

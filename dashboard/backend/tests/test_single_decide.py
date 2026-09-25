@@ -12,7 +12,6 @@ from __future__ import annotations
 from datetime import datetime
 
 import pytest
-
 from tests.conftest import REPO_ROOT
 
 CFG = str(REPO_ROOT / "config" / "base.yaml")
@@ -56,17 +55,18 @@ def paper_runner(db):
     PaperBroker, real Recorder against the test DB."""
     import threading
 
-    from quantsys.config import load_config
-    from quantsys.data.history import BarHistory
-    from quantsys.engine.decision import DecisionEngine
-    from quantsys.execution.angelone import AngelOneBroker
-    from quantsys.execution.marketdata import BarAggregator
     from qsdash.bridge.commands import CommandConsumer
     from qsdash.bridge.live import LiveRunner
     from qsdash.bridge.paper import PaperBroker
     from qsdash.bridge.recorder import Recorder
     from qsdash.bus import make_sync_publisher
     from qsdash.db import SessionLocal
+
+    from quantsys.config import load_config
+    from quantsys.data.history import BarHistory
+    from quantsys.engine.decision import DecisionEngine
+    from quantsys.execution.angelone import AngelOneBroker
+    from quantsys.execution.marketdata import BarAggregator
 
     _rc_cleanup(db, "paper_broker_state", "paper_capital",
                 "paper_capital_applied", "engine_paused")
@@ -227,8 +227,9 @@ def test_durable_capital_applied_once_not_every_restart(paper_runner, db):
 
 
 def test_durable_capital_refused_over_open_positions(paper_runner, db):
-    from quantsys.core.types import Position
     from qsdash.models import RuntimeConfig
+
+    from quantsys.core.types import Position
 
     r = paper_runner
     db.add(RuntimeConfig(key="paper_capital", value={"v": 3_000_000.0},

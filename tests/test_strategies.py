@@ -2,13 +2,13 @@ from datetime import datetime
 
 import numpy as np
 import pytest
+from tests.conftest import cointegrated_pair, gbm, make_hist, make_inst, make_state
 
 from quantsys.config.schema import ExpiryConfig, MeanRevConfig, TrendConfig
 from quantsys.core.types import InstrumentKind
 from quantsys.strategies.expiry import ExpiryStrategy
 from quantsys.strategies.meanrev import MeanRevStrategy
 from quantsys.strategies.trend import TrendStrategy
-from tests.conftest import cointegrated_pair, gbm, make_hist, make_inst, make_state
 
 TREND_CFG = TrendConfig(timeframe_bars=1, ema_fast=5, ema_slow=20, donchian=10,
                         atr_n=5, entry_threshold=0.3, exit_threshold=0.12)

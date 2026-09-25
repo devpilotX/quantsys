@@ -6,7 +6,6 @@ from __future__ import annotations
 import os
 
 import pytest
-
 from qsdash.bridge.livegate import backtest_gate, live_gate
 from qsdash.models import BacktestRun
 

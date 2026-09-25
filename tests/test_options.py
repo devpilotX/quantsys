@@ -130,8 +130,8 @@ def test_credit_spread_emitted_when_iv_rich():
 def test_spread_sizes_to_equal_contract_legs():
     """The defined-risk invariant: through the real SizingEngine the two legs
     come out with EQUAL magnitude and OPPOSITE sign (a true vertical)."""
-    from quantsys.costs import CostModel
     from quantsys.core.types import AuditEvent
+    from quantsys.costs import CostModel
     from quantsys.portfolio.sizing import SizingEngine
 
     cfg = load_config("config/base.yaml")

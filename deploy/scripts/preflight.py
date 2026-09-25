@@ -26,7 +26,7 @@ import socket
 import ssl
 import sys
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 WHITELISTED_IP = "80.225.240.46"   # Angel One static IP on record (verify in app)
 DOMAIN = "quant.devpilotx.com"
@@ -81,8 +81,8 @@ def check_cert(remote: bool) -> None:
             with ctx.wrap_socket(sock, server_hostname=DOMAIN) as ss:
                 cert = ss.getpeercert()
         not_after = datetime.strptime(cert["notAfter"], "%b %d %H:%M:%S %Y %Z").replace(
-            tzinfo=timezone.utc)
-        days = (not_after - datetime.now(timezone.utc)).days
+            tzinfo=UTC)
+        days = (not_after - datetime.now(UTC)).days
         if days < 7:
             check(WARN, "TLS cert", f"valid but expires in {days}d — check renewal")
         else:

@@ -219,7 +219,7 @@ def _z(vals: dict[str, float], syms: list[str]) -> dict[str, float]:
     arr = np.array([vals[s] for s in syms], dtype=float)
     mu, sd = arr.mean(), arr.std()
     if sd == 0:
-        return {s: 0.0 for s in syms}
+        return dict.fromkeys(syms, 0.0)
     return {s: float((vals[s] - mu) / sd) for s in syms}
 
 

@@ -25,8 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 import pyotp  # noqa: E402
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-
-from qsdash.db import Base, engine, SessionLocal  # noqa: E402
+from qsdash.db import Base, SessionLocal, engine  # noqa: E402
 from qsdash.main import app  # noqa: E402
 from qsdash.models import RuntimeConfig, User  # noqa: E402
 from qsdash.security import hash_password, new_totp_secret  # noqa: E402
