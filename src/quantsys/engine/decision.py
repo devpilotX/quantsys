@@ -183,7 +183,7 @@ class DecisionEngine:
         )
         apply_exposure_rules(book, ctx, audits)
 
-        sigma_daily = self._sigma_daily(state, book.symbols())
+        sigma_daily = self.sigma_daily(state, book.symbols())
         targets = self.sizer.finalize(book, tier, view, dict(state.positions), sigma_daily, audits)
 
         self.risk.stops.refresh(targets)
@@ -194,10 +194,16 @@ class DecisionEngine:
             self.sizer.effective_min_notional(state.equity),
             risk_reducing_symbols={sym for (_, sym) in hits},
         )
+        # Exits can name symbols that are no longer in the proposed book, and a
+        # fill still incurs impact, so extend the estimate to cover every order.
+        missing = [o.symbol for o in orders if o.symbol not in sigma_daily]
+        if missing:
+            sigma_daily = {**sigma_daily, **self.sigma_daily(state, missing)}
         return self._decision(state, tier, audits, halted=False, kill_reason=None,
                               risk_pre=pre, regime=regime, signals=tuple(signals),
                               kelly=kelly_f, vol_scaler=vol_scaler,
-                              targets=tuple(targets), orders=orders)
+                              targets=tuple(targets), orders=orders,
+                              sigma_daily=sigma_daily)
 
     def post_bar(self, state: MarketState) -> None:
         """Update online stats with the bar just completed. Call BEFORE decide()."""
@@ -307,7 +313,12 @@ class DecisionEngine:
         R = np.diff(np.log(closes), axis=0)
         return usable, ewma_cov(R, cfg.cov_halflife_bars, cfg.cov_shrink)
 
-    def _sigma_daily(self, state: MarketState, symbols: list[str]) -> dict[str, float]:
+    def sigma_daily(self, state: MarketState, symbols: list[str]) -> dict[str, float]:
+        """Per-symbol daily volatility from the decision-clock EWMA vol.
+
+        Public because the fill paths need the *same* sigma the cost gate used;
+        see Decision.sigma_daily.
+        """
         out: dict[str, float] = {}
         bpd = bars_per_day(self.cfg.engine.decision_bar_minutes)
         for s in symbols:
@@ -322,7 +333,7 @@ class DecisionEngine:
 
     def _decision(self, state, tier, audits, *, halted, kill_reason, risk_pre,
                   regime=None, signals=(), kelly=None, vol_scaler=1.0,
-                  targets=(), orders=()) -> Decision:
+                  targets=(), orders=(), sigma_daily=None) -> Decision:
         from quantsys.core.types import RegimeState
 
         return Decision(
@@ -339,6 +350,7 @@ class DecisionEngine:
             halted=halted,
             kill_reason=kill_reason,
             audit=tuple(audits),
+            sigma_daily=dict(sigma_daily or {}),
         )
 
     # ----------------------------------------------------------- persistence

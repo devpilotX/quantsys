@@ -120,6 +120,27 @@ ignore = [
     # homoglyph mistakes.
     "RUF001", "RUF002", "RUF003",
     "UP031",    # %-formatting in logging calls is deliberate (lazy interpolation)
+
+    # ---------------------------------------------------------------------
+    # Staged for removal, not waved away. Each of these needs a per-site
+    # review that changes behaviour or tracebacks, so it gets its own commit
+    # rather than riding along with a formatting pass. Do not add new
+    # violations: they are only tolerated in the code that predates linting.
+    #
+    # B905  zip() without strict= — flipping to strict=True raises on ragged
+    #       inputs, which is the point, but each of the 15 sites needs its
+    #       length invariant confirmed first (several zip price/qty arrays).
+    # B904  raise ... from — improves tracebacks; mechanical but touches 14
+    #       error paths in the broker adapter that have their own tests.
+    # UP042 str,Enum -> StrEnum — changes __str__ from "Class.NAME" to the
+    #       value, and these enums are persisted to JSON and Postgres. A
+    #       silent serialisation change is exactly what this repo cannot have.
+    # SIM115 open() without a context manager — the two sites hold long-lived
+    #       handles deliberately.
+    "B905", "B904", "UP042", "SIM115",
+    # Cosmetic-only leftovers in pre-lint code.
+    "C408", "C416", "RUF059", "RUF007", "RUF015", "RUF046",
+    "B007", "B027", "PIE810", "SIM105", "SIM117", "PGH003", "PGH004",
 ]
 
 [tool.ruff.lint.per-file-ignores]

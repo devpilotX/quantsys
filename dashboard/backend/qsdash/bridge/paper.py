@@ -189,6 +189,7 @@ class PaperBroker:
         cb = self.cost_model.order_cost(
             inst, abs(qty), px, is_buy,
             delivery=(inst.kind == InstrumentKind.EQUITY),
+            sigma_daily=decision.sigma_daily.get(sym),
         )
         fees = {
             "brokerage": cb.brokerage, "stt": cb.stt, "exchange_txn": cb.exchange_txn,

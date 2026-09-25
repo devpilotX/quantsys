@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
@@ -201,6 +201,13 @@ class Decision:
     halted: bool = False
     kill_reason: str | None = None
     audit: tuple[AuditEvent, ...] = ()
+    # Daily volatility per symbol, as estimated by the engine on THIS bar and
+    # used by the cost gate. Carried on the Decision so every fill path
+    # (SimBroker, PaperBroker) charges square-root market impact with exactly
+    # the same sigma the gate assumed. Without this the gate was conservative
+    # while reported P&L was optimistic, because no fill path passed a sigma
+    # and CostModel silently returns impact=0 when it is absent.
+    sigma_daily: Mapping[str, float] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

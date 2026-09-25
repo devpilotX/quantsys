@@ -2,11 +2,18 @@
 
 Fill model (documented assumptions):
 - Order intents fill in full at the decision bar's close price. The engine's
-  CostModel already charges half-spread slippage + square-root impact as
-  explicit cost lines, so using close as the fill price does not double-count
-  microstructure costs.
+  CostModel charges half-spread slippage + square-root impact as explicit cost
+  lines, so using close as the fill price does not double-count microstructure
+  costs. Impact is only charged when a sigma is supplied, which is why the
+  sigma the engine used is read off Decision.sigma_daily rather than omitted.
 - Equity equation holds exactly at every bar: equity == cash + MTM. The loop
   asserts it.
+
+Known limits of this model, so no reader mistakes it for fill realism: size is
+never capped against the bar's volume or the instrument's ADV, there is no
+spread cross beyond the flat per-kind slippage_bps, and a gap bar is filled at
+its close like any other. Orders therefore always fill completely, which
+flatters any result that depends on being able to trade size.
 
 This is the canonical simulation accounting. The dashboard's PaperBroker
 performs the same average-price bookkeeping but persists rows; keep the two
@@ -98,6 +105,7 @@ class SimBroker:
             cb = self.cost_model.order_cost(
                 inst, abs(qty), px, qty > 0,
                 delivery=(inst.kind == InstrumentKind.EQUITY),
+                sigma_daily=decision.sigma_daily.get(sym),
             )
             self._apply(sym, intent.strategy, qty, px, cb.total, inst, ts)
             self.cash -= qty * px * inst.point_value

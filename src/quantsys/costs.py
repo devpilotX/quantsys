@@ -57,7 +57,14 @@ class CostModel:
         delivery: bool = False,
         sigma_daily: float | None = None,
     ) -> CostBreakdown:
-        """All-in cost of one order of |qty| units at `price`."""
+        """All-in cost of one order of |qty| units at `price`.
+
+        `sigma_daily` is REQUIRED for the square-root impact term to be charged
+        at all: passing None (or an instrument with no ADV) yields impact=0.
+        Callers on a fill path must pass the engine's estimate — see
+        Decision.sigma_daily — otherwise reported P&L silently excludes impact
+        while the cost gate includes it.
+        """
         cfg = self.cfg
         notional = abs(qty) * price * inst.point_value
         kind = inst.kind
@@ -89,7 +96,7 @@ class CostModel:
         slippage = cfg.slippage_bps.get(kind.value, 5.0) / 1e4 * notional
 
         impact = 0.0
-        if inst.adv and sigma_daily and inst.adv > 0:
+        if inst.adv and inst.adv > 0 and sigma_daily is not None:
             impact = cfg.impact_coeff * sigma_daily * ((abs(qty) / inst.adv) ** 0.5) * notional
 
         return CostBreakdown(brokerage, stt, exchange, sebi, stamp, gst, slippage, impact)
