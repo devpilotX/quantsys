@@ -20,7 +20,15 @@ import math
 
 from quantsys.config.schema import SizingConfig
 from quantsys.core.market_state import MarketState
-from quantsys.core.types import AuditEvent, InstrumentKind, Position, Signal, TargetPosition, Urgency
+from quantsys.core.types import (
+    AuditEvent,
+    Instrument,
+    InstrumentKind,
+    Position,
+    Signal,
+    TargetPosition,
+    Urgency,
+)
 from quantsys.costs import CostModel
 from quantsys.portfolio.book import Component, TargetBook
 from quantsys.portfolio.tiers import TierState
@@ -174,7 +182,7 @@ class SizingEngine:
         return out
 
     def _promote_min_lot(self, c: Component, comps: list[Component],
-                         inst, state: MarketState) -> bool:
+                         inst: Instrument, state: MarketState) -> bool:
         """Index-futures unlock: one contract is the market's minimum ticket, so
         a lot-sized FUTURE whose risk budget rounds below one lot may take
         exactly ONE lot iff that lot's rupee risk stays within

@@ -12,9 +12,14 @@ Conventions
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 import numpy as np
 from scipy.signal import lfilter
+
+if TYPE_CHECKING:  # import for typing only — keeps this module import-cycle free
+    from quantsys.data.history import BarHistory
 
 
 def ewma_lambda(halflife: float) -> float:
@@ -136,8 +141,14 @@ def corr_from_cov(S: np.ndarray) -> np.ndarray:
     return np.clip(C, -1.0, 1.0)
 
 
-def aligned_close_matrix(histories: dict[str, object], symbols: list[str], window: int) -> np.ndarray | None:
-    """Stack last `window` closes for symbols into (window, K); None if any lacks data."""
+def aligned_close_matrix(histories: Mapping[str, BarHistory], symbols: list[str],
+                         window: int) -> np.ndarray | None:
+    """Stack last `window` closes for symbols into (window, K); None if any lacks data.
+
+    Typed against BarHistory rather than `object`: the previous annotation made
+    every attribute access on the value unverifiable, so a rename of
+    BarHistory.close would have type-checked cleanly and failed at runtime.
+    """
     cols = []
     for s in symbols:
         h = histories.get(s)

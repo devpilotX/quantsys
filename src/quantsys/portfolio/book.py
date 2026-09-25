@@ -53,10 +53,12 @@ class TargetBook:
             out[sym] = q * prices.get(sym, 0.0) * pv
         return out
 
-    def gross(self, prices, instruments) -> float:
+    def gross(self, prices: Mapping[str, float],
+              instruments: Mapping[str, Instrument]) -> float:
         return sum(abs(v) for v in self.net_notional(prices, instruments).values())
 
-    def net(self, prices, instruments) -> float:
+    def net(self, prices: Mapping[str, float],
+            instruments: Mapping[str, Instrument]) -> float:
         return sum(self.net_notional(prices, instruments).values())
 
     def groups_touching(self, symbol: str) -> list[str]:

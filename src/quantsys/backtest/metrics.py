@@ -12,6 +12,8 @@ All formulas standard; the anti-self-deception pieces:
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
+from datetime import datetime
 from statistics import NormalDist
 
 import numpy as np
@@ -38,7 +40,7 @@ def _ann_sharpe(returns: np.ndarray) -> float | None:
 
 
 # ------------------------------------------------------------------- main
-def compute_metrics(daily_equity: list[tuple[object, float]],
+def compute_metrics(daily_equity: Sequence[tuple[datetime, float]],
                     trades: list,
                     total_fees: float,
                     traded_notional: float,

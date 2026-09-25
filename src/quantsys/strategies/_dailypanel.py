@@ -35,7 +35,7 @@ class DailyPanelStrategy(Strategy):
     def seed_daily(self, symbol: str, rows) -> None:
         """Load daily history: rows of (ts_or_date, open, high, low, close,
         volume) ascending — the broker candle tuple shape."""
-        dq = deque(maxlen=self._depth)
+        dq: deque[tuple[str, float, float, float, float]] = deque(maxlen=self._depth)
         for r in rows:
             ts = r[0]
             d = ts.date().isoformat() if hasattr(ts, "date") else str(ts)[:10]

@@ -21,8 +21,12 @@ a hard cap.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from quantsys.core.types import Instrument, InstrumentKind
+
+if TYPE_CHECKING:  # typing-only: config imports nothing from costs, but keep it acyclic
+    from quantsys.config.schema import CostConfig
 
 
 @dataclass(frozen=True)
@@ -45,7 +49,7 @@ class CostBreakdown:
 
 
 class CostModel:
-    def __init__(self, cfg) -> None:  # cfg: config.schema.CostConfig
+    def __init__(self, cfg: CostConfig) -> None:
         self.cfg = cfg
 
     def order_cost(

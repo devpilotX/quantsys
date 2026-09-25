@@ -93,7 +93,7 @@ class AngelOneBroker:
         if self._transport is not None:
             return self._transport
         try:
-            from SmartApi import SmartConnect  # type: ignore
+            from SmartApi import SmartConnect
         except Exception:  # pragma: no cover - prod-only path
             raise BrokerError(
                 "smartapi-python not installed; pip install smartapi-python", )
@@ -219,12 +219,13 @@ class AngelOneBroker:
                 continue
             dated.sort(key=lambda x: x[0])
             front = next((r for d, r in dated if d >= today), dated[-1][1])
-            inst = out.get(front.get("symbol"))
-            if inst is None:
+            front_sym = front.get("symbol")
+            front_inst = out.get(front_sym) if isinstance(front_sym, str) else None
+            if front_inst is None:
                 continue
             alias = f"{name}-FUT"
-            out[alias] = replace(inst, symbol=alias)
-            self._token_to_symbol[inst.token] = alias
+            out[alias] = replace(front_inst, symbol=alias)
+            self._token_to_symbol[front_inst.token] = alias
         self._instruments = out
         return out
 

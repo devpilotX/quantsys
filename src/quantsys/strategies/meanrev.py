@@ -71,7 +71,7 @@ def _adf_pvalue(resid: np.ndarray) -> float | None:
     """
     from statsmodels.tsa.stattools import adfuller
 
-    kwargs = {"regression": "c", "autolag": "AIC"}
+    kwargs: dict[str, object] = {"regression": "c", "autolag": "AIC"}
     if _accepts_result_object(adfuller):
         kwargs["result_object"] = False
 

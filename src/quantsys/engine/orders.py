@@ -11,7 +11,7 @@ Rules:
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 
 from quantsys.core.types import (
     ExecutionStyle,
@@ -31,7 +31,7 @@ def diff_orders(
     prices: Mapping[str, float],
     tier: TierState,
     min_order_notional: float,
-    risk_reducing_symbols: set[str] = frozenset(),
+    risk_reducing_symbols: Collection[str] = frozenset(),
     kill: bool = False,
 ) -> list[OrderIntent]:
     net: dict[str, int] = {}

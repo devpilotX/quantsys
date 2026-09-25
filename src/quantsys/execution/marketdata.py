@@ -13,6 +13,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Any
 
 from quantsys.core.types import SESSION_OPEN, Bar, is_session_open, now_ist
 
@@ -107,8 +108,8 @@ class BarAggregator:
         return emitted
 
 
-def _default_ws_factory(auth_token, api_key, client_code, feed_token):  # pragma: no cover - network
-    from SmartApi.smartWebSocketV2 import SmartWebSocketV2  # type: ignore
+def _default_ws_factory(auth_token, api_key, client_code, feed_token) -> Any:  # pragma: no cover - network
+    from SmartApi.smartWebSocketV2 import SmartWebSocketV2
 
     return SmartWebSocketV2(auth_token, api_key, client_code, feed_token)
 
@@ -143,7 +144,7 @@ class AngelWebSocketFeed:  # pragma: no cover - network path
                  feed_token: str, tokens_by_exchange: dict[str, list[str]],
                  aggregator: BarAggregator, token_to_symbol: dict[str, str],
                  reauth: Callable[[], dict] | None = None,
-                 ws_factory: Callable[..., object] | None = None,
+                 ws_factory: Callable[..., Any] | None = None,
                  is_open: Callable[[], bool] | None = None,
                  active_fn: Callable[[], bool] | None = None,
                  stale_seconds: float = 90.0, initial_backoff: float = 1.0,
@@ -174,7 +175,7 @@ class AngelWebSocketFeed:  # pragma: no cover - network path
         self._initial_backoff = initial_backoff
         self._max_backoff = max_backoff
         self._watchdog_interval = watchdog_interval
-        self._sws = None
+        self._sws: Any = None
         self._stop = threading.Event()
         self._lock = threading.Lock()
         self._last_tick = 0.0       # monotonic; 0.0 => no tick yet

@@ -23,6 +23,7 @@ import json
 import math
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -103,7 +104,7 @@ def forward_record(rets, vol, idx, start):
 
 def summarize(fwd: pd.Series) -> dict:
     act = fwd[fwd != 0]
-    out = {"forward_days": len(act),
+    out: dict[str, Any] = {"forward_days": len(act),
            "forward_cum_return": float((1 + fwd).prod() - 1)}
     if len(act) >= 20 and fwd.std(ddof=1) > 0:
         out["forward_sharpe_ann"] = float(fwd.mean() / fwd.std(ddof=1)

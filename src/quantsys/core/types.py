@@ -20,7 +20,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
 
@@ -220,7 +220,7 @@ class Fill:
     fees: float = 0.0
 
 
-def session_date(ts: datetime):
+def session_date(ts: datetime) -> date:
     """Trading-session date for IST-naive timestamps (no overnight session)."""
     return ts.date()
 
