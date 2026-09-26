@@ -7,8 +7,9 @@ trading:
   1. VPS public IP == the Angel One whitelisted static IP
   2. TLS cert present and valid for quant.devpilotx.com
   3. .env complete (no placeholder secrets) and gitignored
-  4. DB reachable, migrations at head, an operator exists
-  5. live-gate status (is real money even possible yet?)
+  4. postback secret strong enough to arm live (blocking when QS_LIVE_ARMED)
+  5. DB reachable, migrations at head, an operator exists
+  6. live-gate status (is real money even possible yet?)
 
 Exit code 0 only if every BLOCKING check passes. Informational checks (cert
 before first issuance, live-gate before a real backtest) warn but don't block a
@@ -30,6 +31,9 @@ from datetime import UTC, datetime
 
 WHITELISTED_IP = "80.225.240.46"   # Angel One static IP on record (verify in app)
 DOMAIN = "quant.devpilotx.com"
+# the values qsdash.bridge.livegate accepts as "armed"; kept here so the check
+# still decides FAIL vs WARN when the backend cannot be imported
+_ARMED_VALUES = ("1", "true", "TRUE", "yes")
 
 OK, WARN, FAIL = "OK", "WARN", "FAIL"
 _results: list[tuple[str, str, str]] = []
@@ -114,6 +118,37 @@ def check_env() -> None:
         check(OK, ".env", "no placeholder secrets")
 
 
+def _backend_on_path() -> None:
+    backend = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "dashboard", "backend")
+    if backend not in sys.path:
+        sys.path.insert(0, backend)
+
+
+def check_webhook_secret() -> None:
+    """The postback books live fills, so arming live with an empty, short or
+    template secret is blocking; on a paper deploy it is a warning. A secret
+    that cannot be checked counts as bad."""
+    armed = os.environ.get("QS_LIVE_ARMED", "") in _ARMED_VALUES
+    _backend_on_path()
+    try:
+        from qsdash.bridge.livegate import webhook_secret_problem
+        from qsdash.config import settings
+
+        problem = webhook_secret_problem(settings.angel_webhook_secret)
+    except (ImportError, ValueError) as e:  # no backend here, or bad settings
+        problem = f"could not be checked ({e})"
+    if problem is None:
+        check(OK, "webhook secret", "set, >= 32 characters, not the template value")
+    elif armed:
+        check(FAIL, "webhook secret",
+              f"QS_LIVE_ARMED is set but ANGEL_WEBHOOK_SECRET {problem}")
+    else:
+        check(WARN, "webhook secret",
+              f"ANGEL_WEBHOOK_SECRET {problem}; the live gate will refuse to arm")
+
+
 def check_db() -> None:
     try:
         sys.path.insert(0, os.path.join(
@@ -166,6 +201,7 @@ def main() -> int:
     check_dns()
     check_cert(args.remote)
     check_env()
+    check_webhook_secret()
     check_db()
     check_live_gate()
 
@@ -181,7 +217,8 @@ def main() -> int:
         print("DEPLOY BLOCKED — resolve the FAIL items above.")
         return 1
     print("No blocking issues. PAPER deploy OK. (Live still needs a passing "
-          "backtest gate + QS_LIVE_ARMED + rotated creds.)")
+          "backtest gate + QS_LIVE_ARMED + rotated creds + a strong "
+          "ANGEL_WEBHOOK_SECRET.)")
     return 0
 
 

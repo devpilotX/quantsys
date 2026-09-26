@@ -118,7 +118,7 @@ class CapBody(BaseModel):
 
 
 class KillBody(BaseModel):
-    action: Literal["kill", "flatten", "rearm_dd_kill", "clear_halt"]
+    action: Literal["kill", "flatten", "rearm_dd_kill", "clear_halt", "rebaseline_live_book"]
     reason: str = ""
 
 
@@ -189,11 +189,13 @@ def set_mode(body: ModeBody, request: Request, db: Session = Depends(get_db),
         "flatten_first": body.flatten_first,
         "from_mode": current,
     }
+    # The caps travel in the command only. runtime_config's cap keys are
+    # shared with the paper engine: written here, a go-live the engine's gate
+    # refused would still leave the live cap in force at the next restart.
+    # The engine writes them once it has made the switch.
     if body.deployable_cap_frac is not None:
-        _set_rc(db, "deployable_cap_frac", body.deployable_cap_frac, username, body.reason)
         payload["deployable_cap_frac"] = body.deployable_cap_frac
     if body.deployable_cap_abs is not None:
-        _set_rc(db, "deployable_cap_abs", body.deployable_cap_abs, username, body.reason)
         payload["deployable_cap_abs"] = body.deployable_cap_abs
 
     # NOTE: 'mode' RuntimeConfig is flipped by the ENGINE when it completes the

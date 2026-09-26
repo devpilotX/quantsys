@@ -22,6 +22,11 @@ class Settings(BaseSettings):
 
     # --- core ---------------------------------------------------------
     database_url: str = "postgresql+psycopg://quantsys:quantsys@127.0.0.1:5432/quantsys"
+    # SQL console connection. Point it at a read-only NOSUPERUSER role (see
+    # qsdash/api/dbadmin.py for the role SQL); None runs the console on the
+    # app's own connection, where only keyword filters stand between a query
+    # and everything that role can read.
+    console_database_url: str | None = None
     redis_url: str | None = None          # None => Postgres LISTEN/NOTIFY bus
     env: str = "dev"                      # dev | prod
     public_origin: str = "https://quant.devpilotx.com"
@@ -37,6 +42,9 @@ class Settings(BaseSettings):
 
     # --- integrations -------------------------------------------------
     angel_webhook_secret: str = ""        # shared secret for postback HMAC
+    # Dev-only escape hatch: accept UNSIGNED postbacks when no secret is set.
+    # Ignored unless env == "dev"; without it an unset secret refuses them all.
+    angel_webhook_allow_unsigned: bool = False
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
 

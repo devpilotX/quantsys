@@ -15,7 +15,8 @@ if _DB.exists():
 
 os.environ["DATABASE_URL"] = f"sqlite:///{_DB.as_posix()}"
 os.environ["COOKIE_SECURE"] = "false"
-os.environ["ANGEL_WEBHOOK_SECRET"] = "test-webhook-secret"
+# 32+ characters: livegate and preflight refuse a shorter postback secret
+os.environ["ANGEL_WEBHOOK_SECRET"] = "test-webhook-secret-0123456789abcdef"
 os.environ["ENV"] = "dev"
 os.environ.pop("REDIS_URL", None)
 

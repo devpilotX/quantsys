@@ -4,8 +4,10 @@ non-negotiables — do not weaken them."""
 
 from __future__ import annotations
 
+import pytest
 from qsdash.config import settings
-from qsdash.models import Command, PositionRow, RuntimeConfig
+from qsdash.models import Alert, AuditLog, Command, ConfigVersion, PositionRow, RuntimeConfig
+from sqlalchemy import func
 from tests.conftest import PASSWORD
 
 
@@ -13,6 +15,34 @@ def _reauth(client, totp):
     r = client.post("/api/auth/reauth", json={"password": PASSWORD,
                                               "totp": totp.now()})
     assert r.status_code == 200
+
+
+@pytest.fixture()
+def leaves_no_rows(db):
+    """Deletes the rows a control request adds and restores runtime_config,
+    so the shared database is left as the test found it."""
+    added = (Command, AuditLog, Alert, ConfigVersion)
+    top = {m: db.query(func.max(m.id)).scalar() for m in added}
+    saved = {r.key: (r.value, r.version, r.updated_at, r.updated_by)
+             for r in db.query(RuntimeConfig)}
+    yield
+    db.rollback()
+    for m in added:
+        q = db.query(m)
+        if top[m] is not None:
+            q = q.filter(m.id > top[m])
+        q.delete(synchronize_session=False)
+    for row in db.query(RuntimeConfig).all():
+        if row.key in saved:
+            row.value, row.version, row.updated_at, row.updated_by = saved[row.key]
+        else:
+            db.delete(row)
+    db.commit()
+
+
+def _rc(db, key: str):
+    row = db.get(RuntimeConfig, key)
+    return None if row is None else row.value.get("v")
 
 
 def test_mode_switch_requires_fresh_reauth(authed):
@@ -127,3 +157,44 @@ def test_engine_pause_resume_queue_commands(authed, totp, db):
     r2 = authed.post("/api/control/engine", json={"action": "resume"})
     assert r2.status_code == 200
     assert db.get(Command, r2.json()["command_id"]).kind == "engine_resume"
+
+
+def test_go_live_request_leaves_the_shared_caps_to_the_engine(authed, totp, db,
+                                                              leaves_no_rows):
+    """The request wrote deployable_cap_* before the engine's gate ran. A
+    go-live the paper engine refused still left the live cap in force for
+    that paper engine's next restart, which read it as a drawdown and killed."""
+    db.get(RuntimeConfig, "mode").value = {"v": "paper"}
+    db.commit()
+    caps = ("deployable_cap_frac", "deployable_cap_abs")
+    before = {k: _rc(db, k) for k in caps}
+    _reauth(authed, totp)
+    r = authed.post("/api/control/mode", json={
+        "target_mode": "live",
+        "confirmation_phrase": settings.live_confirmation_phrase,
+        "deployable_cap_frac": 0.05, "deployable_cap_abs": 750_000.0,
+        "flatten_first": True,
+    })
+    assert r.status_code == 200, r.text
+    db.expire_all()
+    assert {k: _rc(db, k) for k in caps} == before
+    cmd = db.get(Command, r.json()["command_id"])
+    assert (cmd.payload["deployable_cap_frac"], cmd.payload["deployable_cap_abs"]) == (
+        0.05, 750_000.0)
+
+
+def test_rebaseline_live_book_needs_fresh_reauth(authed):
+    r = authed.post("/api/control/kill", json={"action": "rebaseline_live_book"})
+    assert r.status_code == 403
+
+
+def test_rebaseline_live_book_is_queued_and_audited(authed, totp, db, leaves_no_rows):
+    _reauth(authed, totp)
+    r = authed.post("/api/control/kill", json={"action": "rebaseline_live_book",
+                                               "reason": "lost postback explained"})
+    assert r.status_code == 200, r.text
+    cmd = db.get(Command, r.json()["command_id"])
+    assert (cmd.kind, cmd.status) == ("rebaseline_live_book", "pending")
+    (entry,) = (db.query(AuditLog)
+                .filter(AuditLog.action == "control.rebaseline_live_book").all())
+    assert entry.detail == {"reason": "lost postback explained"}

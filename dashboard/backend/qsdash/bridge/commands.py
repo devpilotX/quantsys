@@ -9,8 +9,10 @@ thing that flips runtime_config['mode'] — the badge shows engine truth.
 from __future__ import annotations
 
 import logging
+import math
 from typing import TYPE_CHECKING
 
+from qsdash.bridge.livebroker import LiveExecutionBroker
 from qsdash.bus import SyncPublisher
 from qsdash.db import SessionLocal, now_ist
 from qsdash.models import Command, RuntimeConfig
@@ -26,7 +28,10 @@ class CommandConsumer:
         self.runner = runner
         self.publisher = publisher
 
-    def poll(self) -> None:
+    def poll(self) -> int:
+        """Apply every pending command. Returns how many were handled, so the
+        runner knows when the engine state changed between bars."""
+        handled = 0
         sess = SessionLocal()
         try:
             pending = (
@@ -55,8 +60,10 @@ class CommandConsumer:
                 cmd.completed_at = now_ist()
                 sess.commit()
                 self._publish(cmd)
+                handled += 1
         finally:
             sess.close()
+        return handled
 
     def _publish(self, cmd: Command) -> None:
         self.publisher.publish("commands", {
@@ -102,21 +109,38 @@ class CommandConsumer:
                     raise _Reject("live gate refused: " + "; ".join(gate.reasons))
             # transition: flatten the OUTGOING book first if requested
             if p.get("flatten_first") and r.broker is not None:
-                r.broker.flatten_all(r.current_prices(), now_ist(),
-                                     reason="mode switch flatten")
+                summary = r.broker.flatten_all(r.current_prices(), now_ist(),
+                                               reason="mode switch flatten")
+                blocked = (summary or {}).get("blocked") or {}
+                if blocked:
+                    raise _Reject("mode switch refused, flatten incomplete: " + "; ".join(
+                        f"{sym} ({why})" for sym, why in sorted(blocked.items())))
             r.mode = target
             self._set_rc(sess, "mode", target)
-            return {"ok": True, "mode": target,
+            # The request's caps take effect only now the switch is made: the
+            # runtime_config cap keys are shared with the paper engine, and a
+            # refused go-live must not leave a live cap behind in them.
+            caps = {k: float(p[k]) for k in ("deployable_cap_frac", "deployable_cap_abs")
+                    if p.get(k) is not None}
+            if caps:
+                before = self._engine_equity()
+                for key, value in caps.items():
+                    setattr(r, key, value)
+                    self._set_rc(sess, key, value)
+                self._rebase(before)
+            return {"ok": True, "mode": target, **caps,
                     "gate_run_id": getattr(gate, "passing_run_id", None)
                     if target == "live" else None}
 
         if kind == "set_paper_capital":
             cap = float(p.get("capital", 0))
-            if cap <= 0:
+            if not (math.isfinite(cap) and cap > 0):
                 raise _Reject("capital must be positive")
             if r.broker is not None and r.broker.positions:
                 raise _Reject("close all paper positions before changing capital")
+            before = self._engine_equity()
             r.reset_paper_capital(cap)
+            self._rebase(before)
             # both keys so the startup path sees value == applied and does NOT
             # re-reset cash on the next recycle (phantom-equity guard)
             self._set_rc(sess, "paper_capital", cap)
@@ -124,10 +148,12 @@ class CommandConsumer:
             return {"ok": True, "capital": cap}
 
         if kind == "set_deployable_cap":
+            before = self._engine_equity()
             if "deployable_cap_frac" in p:
                 r.deployable_cap_frac = float(p["deployable_cap_frac"])
             if "deployable_cap_abs" in p:
                 r.deployable_cap_abs = float(p["deployable_cap_abs"])
+            self._rebase(before)
             return {"ok": True,
                     "deployable_cap_frac": r.deployable_cap_frac,
                     "deployable_cap_abs": r.deployable_cap_abs}
@@ -139,13 +165,52 @@ class CommandConsumer:
         if kind == "flatten":
             if r.broker is None:
                 raise _Reject("no broker attached")
-            r.broker.flatten_all(r.current_prices(), now_ist(),
-                                 reason=p.get("reason") or "operator flatten")
-            return {"ok": True}
+            # the live broker tags these orders as a flatten, so they never
+            # take the id of a decision order from the same minute
+            summary = r.broker.flatten_all(r.current_prices(), now_ist(),
+                                           reason=p.get("reason") or "operator flatten")
+            blocked = (summary or {}).get("blocked") or {}
+            if blocked:
+                # a symbol left open must not read as a finished flatten
+                raise _Reject("flatten incomplete, still open: " + "; ".join(
+                    f"{sym} ({why})" for sym, why in sorted(blocked.items())))
+            return {"ok": True, **(summary or {})}
 
-        if kind == "rearm_dd_kill" or kind == "clear_halt":
+        if kind == "rearm_dd_kill":
+            # clears the kills and the halt, and measures drawdown from the
+            # next equity: re-arming without the re-base killed again next bar
             r.engine.risk.rearm()
             return {"ok": True}
+
+        if kind == "clear_halt":
+            # only the reconciliation freeze; the drawdown reference and any
+            # kill stay as they are
+            r.engine.risk.clear_halt()
+            if isinstance(r.broker, LiveExecutionBroker):
+                # the intended book has not changed, so neither has the mismatch
+                return {"ok": True, "note": (
+                    "reconciliation runs again on the next bar, and a mismatch that "
+                    "persists freezes the engine again; once the difference is "
+                    "explained, rebaseline_live_book takes the broker's book as the "
+                    "new baseline")}
+            return {"ok": True}
+
+        if kind == "rebaseline_live_book":
+            # The remedy for a reconciliation freeze whose cause is understood
+            # (a lost postback, a trade made at the broker): the broker's book
+            # becomes the intended book's new baseline, then the halt clears.
+            if not isinstance(r.broker, LiveExecutionBroker):
+                raise _Reject("rebaseline_live_book needs the live execution broker; "
+                              f"this engine runs {r.mode}")
+            out: dict = {"ok": True, "baseline": r.broker.rebaseline()}
+            r.engine.risk.clear_halt()
+            working = sorted(r.broker.working_symbols())
+            if working:
+                out["working"] = working
+                out["note"] = ("fills on these symbols that are at the broker but not yet "
+                               "booked by a postback are now counted twice; if "
+                               "reconciliation freezes again, re-baseline once they finish")
+            return out
 
         if kind == "strategy_toggle":
             name = p.get("strategy", "")
@@ -171,6 +236,34 @@ class CommandConsumer:
                     else "decision loop resumed"}
 
         raise _Reject(f"unknown command kind {kind!r}")
+
+    # ------------------------------------------------------ capital changes
+    def _engine_equity(self) -> float | None:
+        """Equity as the engine sees it (after the deployable caps), or None
+        when it cannot be read."""
+        r = self.runner
+        if r.broker is None:
+            return None
+        try:
+            return float(r.effective_equity(r.broker.equity(r.current_prices())))
+        except Exception as e:  # a broker read failure must not block the command
+            log.warning("equity unreadable around a capital change: %s", e)
+            return None
+
+    def _rebase(self, before: float | None) -> None:
+        """An operator capital change is neither a gain nor a loss: scale the
+        drawdown and day-loss references by new / old. Without this, cutting
+        deployable capital by a fifth read as a 20% drawdown and flattened
+        the book."""
+        after = self._engine_equity()
+        if (before is None or after is None or not (math.isfinite(before) and before > 0)
+                or not (math.isfinite(after) and after > 0)):
+            log.warning("capital change: equity before=%r after=%r, references not "
+                        "re-based", before, after)
+            return
+        if after != before:
+            self.runner.engine.risk.rebase_equity(before, after)
+            log.info("capital change: drawdown references scaled by %.6f", after / before)
 
 
 class _Reject(Exception):
