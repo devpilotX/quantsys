@@ -181,7 +181,13 @@ class AngelWebSocketFeed:  # pragma: no cover - network path
         self._last_tick = 0.0       # monotonic; 0.0 => no tick yet
         self._connected_at = 0.0    # monotonic of last socket (re)build; 0 => down
         self._reauth_min_interval = reauth_min_interval
-        self._last_reauth = 0.0     # monotonic of last generateSession; 0 => never
+        # Monotonic time of the last generateSession, or None if it has never
+        # run. None rather than 0.0: the monotonic clock starts near zero at
+        # boot, so with 0.0 as the marker a host up for less than
+        # reauth_min_interval read "never re-authed" as "re-authed just now"
+        # and skipped the first token refresh (it also made two feed tests
+        # fail on freshly booted CI runners).
+        self._last_reauth: float | None = None
         self._ticks_this_conn = 0   # ticks delivered by the CURRENT socket
 
     # ------------------------------------------------------------- lifecycle
@@ -253,6 +259,10 @@ class AngelWebSocketFeed:  # pragma: no cover - network path
             except Exception:
                 pass
 
+    def _reauth_due(self, now: float) -> bool:
+        last = self._last_reauth
+        return last is None or now - last >= self._reauth_min_interval
+
     def _do_reauth(self) -> None:
         if self._reauth is None:
             return
@@ -283,7 +293,7 @@ class AngelWebSocketFeed:  # pragma: no cover - network path
                 # a park usually spans the broker's daily token reset: refresh
                 # eagerly so the first connect doesn't burn a failure on it
                 now = time.monotonic()
-                if now - self._last_reauth >= self._reauth_min_interval:
+                if self._reauth_due(now):
                     self._do_reauth()
                     self._last_reauth = now
                 log.info("feed: pre-open window — resuming socket")
@@ -322,7 +332,7 @@ class AngelWebSocketFeed:  # pragma: no cover - network path
             if not self._active_fn():
                 continue  # session closed while connected: park, no reauth/backoff
             now = time.monotonic()
-            if now - self._last_reauth >= self._reauth_min_interval:
+            if self._reauth_due(now):
                 self._do_reauth()
                 self._last_reauth = now
             log.warning("feed: socket down — reconnect in %.0fs", backoff)
