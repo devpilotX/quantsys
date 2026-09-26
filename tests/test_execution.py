@@ -57,13 +57,14 @@ class FakeTransport:
         return "ft"
 
     def rmsLimit(self):
-        return {"data": {"availablecash": "1500000"}}
+        return {"status": True, "data": {"availablecash": "1500000"}}
 
     def position(self):
-        return {"data": [{"tradingsymbol": "SBIN-EQ", "netqty": "10", "netprice": "550"}]}
+        return {"status": True,
+                "data": [{"tradingsymbol": "SBIN-EQ", "netqty": "10", "netprice": "550"}]}
 
     def orderBook(self):
-        return {"data": list(self._book.values())}
+        return {"status": True, "data": list(self._book.values())}
 
     def placeOrder(self, params):
         self._seq += 1
@@ -280,7 +281,9 @@ def test_oms_urgency_orders_go_first(broker):
     normal = OrderIntent("SBIN-EQ", 5, ExecutionStyle.MARKET_SINGLE, Urgency.NORMAL, "a")
     kill = OrderIntent("SBIN-EQ", -5, ExecutionStyle.MARKET_SINGLE, Urgency.KILL, "b")
     ts = datetime(2026, 6, 12, 9, 20)
-    oms.submit_intents([normal, kill], insts, ts, {"SBIN-EQ": 550.0})
+    # the kill sells a held long: a cash-equity sell must be reduce-only
+    oms.submit_intents([normal, kill], insts, ts, {"SBIN-EQ": 550.0},
+                       positions={"SBIN-EQ": 5})
     # the KILL (risk-reducing) order must be the first placeOrder call — it
     # sorts ahead of the NORMAL order, so it is the SELL
     assert broker._transport.placed[0]["transactiontype"] == "SELL"

@@ -10,7 +10,8 @@ kill-vs-halt semantics exactly.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from collections.abc import Collection, Mapping
+from dataclasses import dataclass, field
 
 from quantsys.execution.broker import Broker, BrokerError
 
@@ -23,6 +24,22 @@ class ReconResult:
     internal: dict[str, int]
     broker: dict[str, int]
     mismatches: list[str]
+    skipped: list[str] = field(default_factory=list)
+
+
+def reconcile_books(internal: Mapping[str, int], broker: Mapping[str, int],
+                    skip: Collection[str] = ()) -> ReconResult:
+    """Compare an engine-side book with one broker snapshot. Symbols in
+    ``skip`` (orders still working, so fills may be in flight) are left out
+    of both returned maps, so RiskEngine.reconcile() given those maps sees
+    exactly the mismatches reported here."""
+    skipped = sorted({s for s in set(internal) | set(broker) if s in skip})
+    ours = {s: q for s, q in internal.items() if q != 0 and s not in skip}
+    theirs = {s: q for s, q in broker.items() if q != 0 and s not in skip}
+    mismatches = [f"{sym}: internal={ours.get(sym, 0)} broker={theirs.get(sym, 0)}"
+                  for sym in sorted(set(ours) | set(theirs))
+                  if ours.get(sym, 0) != theirs.get(sym, 0)]
+    return ReconResult(not mismatches, ours, theirs, mismatches, skipped)
 
 
 def reconcile_positions(broker: Broker, internal: dict[str, int]
@@ -34,10 +51,4 @@ def reconcile_positions(broker: Broker, internal: dict[str, int]
         bpos = {p.symbol: p.qty for p in broker.positions() if p.qty != 0}
     except BrokerError as e:
         return ReconResult(False, internal, {}, [f"broker positions unreadable: {e}"])
-
-    mismatches: list[str] = []
-    for sym in set(internal) | set(bpos):
-        iq, bq = internal.get(sym, 0), bpos.get(sym, 0)
-        if iq != bq:
-            mismatches.append(f"{sym}: internal={iq} broker={bq}")
-    return ReconResult(not mismatches, internal, bpos, mismatches)
+    return reconcile_books(internal, bpos)

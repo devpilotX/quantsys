@@ -56,13 +56,13 @@ class _MockTransport:
         return "ft"
 
     def rmsLimit(self):
-        return {"data": {"availablecash": "1000000"}}
+        return {"status": True, "data": {"availablecash": "1000000"}}
 
     def position(self):
-        return {"data": []}
+        return {"status": True, "data": []}
 
     def orderBook(self):
-        return {"data": []}
+        return {"status": True, "data": []}
 
 
 _MASTER = [

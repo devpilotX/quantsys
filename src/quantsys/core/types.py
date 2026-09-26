@@ -91,6 +91,9 @@ class Instrument:
     sector: str | None = None
     adv: float | None = None    # average daily volume in units; refreshed daily
     margin_rate: float = 1.0    # fraction of notional blocked as margin
+    # The broker's own tradingsymbol when it differs from ``symbol``, e.g. the
+    # dated contract behind the rolling "NIFTY-FUT" alias. None: same as symbol.
+    broker_symbol: str | None = None
 
 
 @dataclass(frozen=True)

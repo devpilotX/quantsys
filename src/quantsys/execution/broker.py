@@ -3,9 +3,14 @@
 Contract notes:
 - `place` is idempotent on `client_order_id`: re-submitting a known id returns
   the existing ack, never a duplicate order. Callers generate stable ids.
+- A send whose outcome is unknown raises OrderStateUnknown. The order may be
+  live at the broker, so nothing may resend it until a lookup by
+  client_order_id (the ordertag) has resolved it.
 - Quantities are signed instrument units everywhere (engine convention).
 - All methods may raise BrokerError; the live runner treats any error as
   "reduce risk / do nothing", never "retry blindly into the market".
+- A read that fails raises; it never returns an empty result, because an
+  empty position list and an unreadable one lead to opposite decisions.
 """
 
 from __future__ import annotations
@@ -23,8 +28,13 @@ class OrderStatus(str, Enum):
     SUBMITTED = "SUBMITTED"
     PARTIAL = "PARTIAL"
     FILLED = "FILLED"
+    # Terminal. With filled_qty > 0 this is a finished partial fill.
     CANCELLED = "CANCELLED"
     REJECTED = "REJECTED"
+    # The broker reported a state we do not recognise. Not terminal, so it is
+    # never read as "done"; and the order exists at the broker, so it is never
+    # safe to send again.
+    UNKNOWN = "UNKNOWN"
 
     @property
     def terminal(self) -> bool:
@@ -38,6 +48,15 @@ class BrokerError(Exception):
     def __init__(self, message: str, *, retryable: bool = False):
         super().__init__(message)
         self.retryable = retryable
+
+
+class OrderStateUnknown(BrokerError):
+    """A send may have reached the broker but its outcome could not be
+    established (response lost and the order book unreadable). Never
+    retryable: resolve it by looking the order up first."""
+
+    def __init__(self, message: str):
+        super().__init__(message, retryable=False)
 
 
 @dataclass
@@ -56,6 +75,10 @@ class BrokerOrder:
     reject_reason: str = ""
     strategy: str = ""
     ts: datetime | None = None
+    # Set by the position-aware caller when the order can only shrink an
+    # existing position. The Angel adapter sends a cash-equity SELL only with
+    # this set: without it the sell could open a short that cannot be carried.
+    reduce_only: bool = False
 
 
 @dataclass
@@ -106,6 +129,19 @@ class Broker(Protocol):
         """Idempotent on order.client_order_id."""
         ...
 
-    def cancel(self, client_order_id: str) -> OrderAck: ...
+    def cancel(self, client_order_id: str) -> OrderAck:
+        """Requests a cancel. The ack is not a confirmation: poll
+        order_status until the order is terminal."""
+        ...
 
     def order_status(self, client_order_id: str) -> BrokerOrder | None: ...
+
+    def find_by_tag(self, client_order_id: str) -> BrokerOrder | None:
+        """Look an order up in the broker's book by client_order_id. None
+        means "not in the book"; an unreadable book raises BrokerError."""
+        ...
+
+    def register_order(self, client_order_id: str, broker_order_id: str) -> None:
+        """Restore a client -> broker id mapping known from a journal, so
+        cancel and order_status work after a restart."""
+        ...
