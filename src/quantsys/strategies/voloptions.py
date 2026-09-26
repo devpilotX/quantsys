@@ -19,16 +19,44 @@ state.extra['option_chains'] and the option legs registered as instruments
 
 from __future__ import annotations
 
+import logging
 import math
 
 import numpy as np
 
 from quantsys.config.schema import VolOptionsConfig
 from quantsys.core.market_state import MarketState
-from quantsys.core.types import LegSpec, Signal
+from quantsys.core.types import SESSION_MINUTES, LegSpec, Signal
 from quantsys.options.blackscholes import implied_vol
 from quantsys.options.chain import OptionChain
 from quantsys.strategies.base import Strategy, register
+
+log = logging.getLogger("quantsys.strategies.voloptions")
+
+_GAP_SAMPLE = 50   # recent intra-session bar gaps whose median is the bar interval
+
+
+def _bar_minutes(state: MarketState, ts: np.ndarray) -> float | None:
+    """Bar length in minutes for annualising a per-bar vol.
+
+    state.extra["bar_minutes"] wins when the caller sets it. Nothing in the
+    engine sets it (a silent default of 5 overstated realized vol by sqrt(3)
+    on the 15-minute clock), so otherwise the interval is read off the bar
+    timestamps: the median of the last _GAP_SAMPLE positive gaps shorter than
+    a session. A gap that short cannot span a close, so overnight and weekend
+    gaps drop out. None when neither source gives an answer.
+    """
+    given = state.extra.get("bar_minutes")
+    if given is not None:
+        minutes = float(given)
+        if not (math.isfinite(minutes) and minutes > 0):
+            raise ValueError(f"state.extra['bar_minutes'] must be a positive number, got {given!r}")
+        return minutes
+    gaps = np.diff(np.asarray(ts, dtype=float))
+    gaps = gaps[(gaps > 0) & (gaps < SESSION_MINUTES * 60.0)]
+    if gaps.size == 0:
+        return None
+    return float(np.median(gaps[-_GAP_SAMPLE:])) / 60.0
 
 
 @register("voloptions")
@@ -51,8 +79,14 @@ class VolOptionsStrategy(Strategy):
         rets = np.diff(np.log(closes))
         if rets.size < 2:
             return None
+        minutes = _bar_minutes(state, h.ts)
+        if minutes is None:
+            log.warning("voloptions: no bar_minutes in state.extra and no intra-session "
+                        "gaps in the %s bars; cannot annualise realized vol, skipping",
+                        underlying)
+            return None
         per_bar = float(np.std(rets, ddof=1))
-        ann = math.sqrt(bars_per_year(state.extra.get("bar_minutes", 5)))
+        ann = math.sqrt(bars_per_year(minutes))
         return per_bar * ann
 
     def _trend(self, state: MarketState, underlying: str) -> float:

@@ -8,6 +8,7 @@ runs in milliseconds.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -27,6 +28,11 @@ class HMMParams:
     degenerate: bool = True
     occupancy: np.ndarray = field(default_factory=lambda: np.array([]))
 
+    def is_finite(self) -> bool:
+        """True when the log-likelihood and every parameter array are finite."""
+        arrays = (self.startprob, self.transmat, self.means, self.variances, self.occupancy)
+        return math.isfinite(self.loglik) and all(bool(np.all(np.isfinite(a))) for a in arrays)
+
     def to_dict(self) -> dict:
         return {
             "startprob": self.startprob.tolist(),
@@ -40,7 +46,7 @@ class HMMParams:
 
     @classmethod
     def from_dict(cls, d: dict) -> HMMParams:
-        return cls(
+        params = cls(
             startprob=np.array(d["startprob"]),
             transmat=np.array(d["transmat"]),
             means=np.array(d["means"]),
@@ -49,6 +55,11 @@ class HMMParams:
             converged=d.get("converged", False),
             degenerate=d.get("degenerate", False),
         )
+        # Snapshots written before fit_hmm checked finiteness can hold a NaN
+        # fit flagged healthy. Re-derive the flag so it never serves again.
+        if not params.is_finite():
+            params.degenerate = True
+        return params
 
 
 def _log_emissions(X: np.ndarray, means: np.ndarray, variances: np.ndarray) -> np.ndarray:
@@ -84,10 +95,14 @@ def fit_hmm(
     var_floor: float = 1e-6,
     min_occupancy: float = 0.02,
 ) -> HMMParams:
-    """EM fit with seeded restarts; returns the best-likelihood solution."""
+    """EM fit with seeded restarts; returns the best-likelihood finite
+    solution. A restart that goes non-finite is degenerate and is never
+    selected; if every restart does, the first one is returned, flagged
+    degenerate."""
     X = np.asarray(X, dtype=float)
     T, D = X.shape
     best: HMMParams | None = None
+    diverged: HMMParams | None = None
 
     for r in range(n_restarts):
         rng = np.random.default_rng(seed + 1000 * r)
@@ -108,6 +123,8 @@ def fit_hmm(
         for _ in range(n_iter):
             log_b = _log_emissions(X, means, variances)
             log_alpha, ll = _forward(log_b, np.log(pi), np.log(A))
+            if not math.isfinite(ll):
+                break  # NaN/inf never recovers; the finiteness check below rejects it
             log_beta = _backward(log_b, np.log(A))
             gamma = np.exp(log_alpha + log_beta - ll)
             # xi summed over t: (T-1, K, K) tensor, fine at this scale
@@ -136,11 +153,19 @@ def fit_hmm(
             ll_prev = ll
 
         occupancy = gamma.sum(axis=0) / T
-        degenerate = bool(occupancy.min() < min_occupancy)
-        cand = HMMParams(pi, A, means, variances, ll, converged, degenerate, occupancy)
+        cand = HMMParams(pi, A, means, variances, ll, converged, True, occupancy)
+        # Check finiteness first: NaN compares False, so a NaN occupancy passes
+        # the occupancy test and a NaN likelihood kept as best is never beaten.
+        if not cand.is_finite():
+            if diverged is None:
+                diverged = cand
+            continue
+        cand.degenerate = bool(occupancy.min() < min_occupancy)
         if best is None or cand.loglik > best.loglik:
             best = cand
-    assert best is not None
+    if best is None:
+        assert diverged is not None
+        return diverged
     return best
 
 

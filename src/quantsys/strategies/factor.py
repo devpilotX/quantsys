@@ -34,6 +34,7 @@ import numpy as np
 from quantsys.config.schema import FactorConfig
 from quantsys.core.market_state import MarketState
 from quantsys.core.types import InstrumentKind, Signal
+from quantsys.strategies._dailypanel import sessions_between
 from quantsys.strategies.base import Strategy, register
 
 
@@ -84,8 +85,10 @@ class FactorStrategy(Strategy):
         # Warmup replays decide() before _seed_daily_panels runs, so the first
         # rebalance already fired on an empty panel and left _days_since near 0.
         # Force the next live bar to rebalance now that real daily history
-        # exists — otherwise factor waits rebalance_bars sessions (and every
-        # restart re-runs warmup and resets the clock, so it never fires).
+        # exists. A restart that restores the sleeve's saved state afterwards
+        # (restore_state) puts the real rebalance clock back; without that,
+        # every 08:50 recycle forced a rebalance and the monthly cadence ran
+        # daily.
         self._days_since = 10 ** 9
 
     # ------------------------------------------------------------- signals
@@ -95,9 +98,10 @@ class FactorStrategy(Strategy):
         if self._cur_date is None:
             self._cur_date = d
         elif d != self._cur_date:
+            # sessions a restarted process missed are in the reseeded panel
+            self._days_since += 1 + sessions_between(self._panel, self._cur_date, d)
             self._roll_day()
             self._cur_date = d
-            self._days_since += 1
 
         for sym in state.bars:
             inst = state.instruments.get(sym)
@@ -114,8 +118,10 @@ class FactorStrategy(Strategy):
                 t[2] = min(t[2], px)
                 t[3] = px
 
-        if self._days_since >= cfg.rebalance_bars:
-            self._rebalance()
+        # The clock restarts only when a basket forms. A rebalance refused for
+        # breadth (panel still unseeded, say) used to restart it too, leaving
+        # the sleeve flat for a full cycle after seeding.
+        if self._days_since >= cfg.rebalance_bars and self._rebalance(_equities(state)):
             self._days_since = 0
 
         out: list[Signal] = []
@@ -138,7 +144,13 @@ class FactorStrategy(Strategy):
         self._today.clear()
 
     # ------------------------------------------------------------- rebalance
-    def _rebalance(self) -> None:
+    def _rebalance(self, tradeable: set[str]) -> bool:
+        """Rank the names this sleeve can trade: the equities in the tier's
+        view. The seeded panel covers every configured equity, so ranking all
+        of it picked names outside the view, whose signals were then dropped,
+        leaving a truncated basket that was no longer dollar-neutral, and
+        checked min_universe against names the book could not hold. Returns
+        whether a basket formed."""
         cfg = self.cfg
         need = cfg.lookback_bars + cfg.skip_bars + 1
         # names that fell out of the tier view stop receiving live rows; a
@@ -152,6 +164,8 @@ class FactorStrategy(Strategy):
         lvol: dict[str, float] = {}
         atr_d: dict[str, float] = {}
         for sym, dq in sorted(self._panel.items()):
+            if sym not in tradeable:
+                continue
             if len(dq) < max(need, cfg.vol_lookback + 1, cfg.atr_n + 2):
                 continue
             if stale_before is not None and dq[-1][0] < stale_before:
@@ -171,18 +185,20 @@ class FactorStrategy(Strategy):
         syms = sorted(mom)
         if len(syms) < cfg.min_universe:        # insufficient breadth -> full no-op
             self._dir, self._stops = {}, {}
-            return
+            return False
         score = _zsum(mom, syms, _zsum(lvol, syms, None))
         ranked = sorted(syms, key=lambda s: score[s])
         k = min(cfg.top_k, len(ranked) // 2)
         new: dict[str, float] = {}
-        for s in ranked[-k:]:
+        # ranked[-k:] with k == 0 is the whole list, not an empty one
+        for s in ranked[len(ranked) - k:]:
             new[s] = 1.0
         if cfg.market_neutral:
             for s in ranked[:k]:
                 new[s] = -1.0
         self._dir = new
         self._stops = {s: cfg.atr_mult * atr_d[s] for s in new}
+        return bool(new)
 
     # ----------------------------------------------------------- persistence
     def state_dict(self) -> dict:
@@ -196,13 +212,40 @@ class FactorStrategy(Strategy):
         }
 
     def load_state(self, d: dict) -> None:
-        self._panel = {s: deque([tuple(r) for r in rows], maxlen=self._depth)
-                       for s, rows in d.get("panel", {}).items()}
-        self._today = {s: list(v) for s, v in d.get("today", {}).items()}
+        # a key left out is kept as it is (see restore_state)
+        if "panel" in d:
+            self._panel = {s: deque([tuple(r) for r in rows], maxlen=self._depth)
+                           for s, rows in d["panel"].items()}
+        if "today" in d:
+            self._today = {s: list(v) for s, v in d["today"].items()}
         self._dir = {k: float(v) for k, v in d.get("dir", {}).items()}
         self._stops = {k: float(v) for k, v in d.get("stops", {}).items()}
         self._days_since = d.get("days_since", 10 ** 9)
         self._cur_date = d.get("cur_date")
+
+    def restore_state(self, d: dict) -> None:
+        """Resume the held basket and the rebalance clock from a snapshot.
+        Per symbol, the deeper of the panel held now and the saved one is
+        kept, the current one on a tie: a panel seeded at this start is as
+        deep and newer, while warm-up alone builds only a few rows, so the
+        saved panel stands in where seeding failed."""
+        self.load_state({k: v for k, v in d.items() if k not in ("panel", "today")})
+        self._panel = merge_panels(self._panel, d.get("panel", {}), self._depth)
+
+
+def merge_panels(current: dict, saved: dict, depth: int) -> dict:
+    """Per symbol, the current rows unless the saved ones are deeper."""
+    out = dict(current)
+    for sym, rows in saved.items():
+        if len(rows) > len(out.get(sym, ())):
+            out[sym] = deque([tuple(r) for r in rows], maxlen=depth)
+    return out
+
+
+def _equities(state: MarketState) -> set[str]:
+    return {s for s in state.bars
+            if (inst := state.instruments.get(s)) is not None
+            and inst.kind == InstrumentKind.EQUITY}
 
 
 def _atr_daily(arr: np.ndarray, n: int) -> float:

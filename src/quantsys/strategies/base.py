@@ -104,6 +104,12 @@ class Strategy(ABC):
     def load_state(self, d: dict) -> None:
         pass
 
+    def restore_state(self, d: dict) -> None:
+        """Resume from a snapshot saved by an earlier run of the live engine,
+        after this start's warm-up and daily-panel seeding. Default: the
+        snapshot wins. Sleeves that re-fetch data at start keep what is newer."""
+        self.load_state(d)
+
 
 REGISTRY: dict[str, Callable[..., Strategy]] = {}
 

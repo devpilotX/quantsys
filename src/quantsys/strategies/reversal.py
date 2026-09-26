@@ -18,7 +18,7 @@ import numpy as np
 
 from quantsys.config.schema import ReversalConfig
 from quantsys.core.market_state import MarketState
-from quantsys.core.types import Signal
+from quantsys.core.types import InstrumentKind, Signal
 from quantsys.strategies._dailypanel import DailyPanelStrategy, atr_from_rows
 from quantsys.strategies.base import register
 
@@ -35,10 +35,12 @@ class ReversalStrategy(DailyPanelStrategy):
 
     def generate_signals(self, state: MarketState) -> list[Signal]:
         cfg = self.cfg
-        if self._ingest_daily(state):
-            self._days_since += 1
-        if self._days_since >= cfg.rebalance_days:
-            self._rebalance()
+        self._days_since += self._ingest_daily(state)   # sessions elapsed
+        # the clock restarts only when a basket forms (see FactorStrategy)
+        if self._days_since >= cfg.rebalance_days and self._rebalance(
+                {s for s in state.bars
+                 if (inst := state.instruments.get(s)) is not None
+                 and inst.kind == InstrumentKind.EQUITY}):
             self._days_since = 0
 
         out: list[Signal] = []
@@ -52,7 +54,9 @@ class ReversalStrategy(DailyPanelStrategy):
             ))
         return out
 
-    def _rebalance(self) -> None:
+    def _rebalance(self, tradeable: set[str]) -> bool:
+        """Rank only equities in the tier's view (see FactorStrategy).
+        Returns whether a basket formed."""
         cfg = self.cfg
         need = max(cfg.lookback_days + 1, cfg.atr_n + 2)
         stale_before = None
@@ -62,7 +66,7 @@ class ReversalStrategy(DailyPanelStrategy):
         ret: dict[str, float] = {}
         atr_d: dict[str, float] = {}
         for sym, dq in sorted(self._panel.items()):
-            if len(dq) < need:
+            if sym not in tradeable or len(dq) < need:
                 continue
             if stale_before is not None and dq[-1][0] < stale_before:
                 continue   # fell out of the live view: frozen prices, drop
@@ -78,17 +82,19 @@ class ReversalStrategy(DailyPanelStrategy):
         syms = sorted(ret)
         if len(syms) < cfg.min_universe:       # insufficient breadth -> no-op
             self._dir, self._stops = {}, {}
-            return
+            return False
         ranked = sorted(syms, key=lambda s: ret[s])
         k = min(cfg.top_k, len(ranked) // 2)
         new: dict[str, float] = {}
         for s in ranked[:k]:                   # losers -> LONG (reversal)
             new[s] = 1.0
         if cfg.market_neutral:
-            for s in ranked[-k:]:              # winners -> SHORT
+            # not ranked[-k:]: at k == 0 that slice is the whole list
+            for s in ranked[len(ranked) - k:]:  # winners -> SHORT
                 new[s] = -1.0
         self._dir = new
         self._stops = {s: cfg.atr_mult * atr_d[s] for s in new}
+        return bool(new)
 
     # ----------------------------------------------------------- persistence
     def state_dict(self) -> dict:

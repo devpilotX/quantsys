@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
+from collections.abc import Mapping
 
 from quantsys.core.market_state import MarketState
 from quantsys.core.types import InstrumentKind
@@ -55,18 +56,24 @@ class DailyPanelStrategy(Strategy):
         return 8
 
     # ------------------------------------------------------------ live roll
-    def _ingest_daily(self, state: MarketState) -> bool:
-        """Track today's OHLCV row per EQUITY symbol; finalize yesterday's row
-        into the panel when the session date rolls. Returns True on a roll
-        (i.e. exactly once per new session date)."""
+    def _ingest_daily(self, state: MarketState) -> int:
+        """Track today's OHLCV row per EQUITY symbol; finalize the previous
+        row into the panel when the session date rolls.
+
+        Returns the sessions elapsed since the last session this sleeve saw:
+        0 while the date is unchanged, 1 on an ordinary roll. After a restart
+        that restored episode state from an earlier session, the freshly
+        seeded panel holds the sessions the process missed, and each of them
+        counts too, so a hold measured in sessions keeps its length across
+        the outage."""
         d = state.ts.date().isoformat()
-        rolled = False
+        elapsed = 0
         if self._cur_date is None:
             self._cur_date = d
         elif d != self._cur_date:
+            elapsed = 1 + sessions_between(self._panel, self._cur_date, d)
             self._roll_day()
             self._cur_date = d
-            rolled = True
 
         for sym in state.bars:
             inst = state.instruments.get(sym)
@@ -85,7 +92,7 @@ class DailyPanelStrategy(Strategy):
                 t[2] = min(t[2], px)
                 t[3] = px
                 t[4] += bar_v
-        return rolled
+        return elapsed
 
     def _roll_day(self) -> None:
         for sym, (d, h, lo, c, v) in self._today.items():
@@ -104,10 +111,29 @@ class DailyPanelStrategy(Strategy):
         }
 
     def load_state(self, d: dict) -> None:
-        self._panel = {s: deque([tuple(r) for r in rows], maxlen=self._depth)
-                       for s, rows in d.get("panel", {}).items()}
-        self._today = {s: list(v) for s, v in d.get("today", {}).items()}
+        # A key left out is kept as it is: restore_state leaves out the panel
+        # when a fresher one was seeded at this start.
+        if "panel" in d:
+            self._panel = {s: deque([tuple(r) for r in rows], maxlen=self._depth)
+                           for s, rows in d["panel"].items()}
+        if "today" in d:
+            self._today = {s: list(v) for s, v in d["today"].items()}
         self._cur_date = d.get("cur_date")
+
+    def restore_state(self, d: dict) -> None:
+        """Resume after a restart. Per symbol, the deeper of the panel held
+        now and the saved one is kept, the current one on a tie: a panel
+        seeded at this start is as deep and newer, while warm-up alone builds
+        only a few rows, so the saved panel stands in where seeding failed."""
+        self.load_state({k: v for k, v in d.items() if k not in ("panel", "today")})
+        for sym, rows in d.get("panel", {}).items():
+            if len(rows) > len(self._panel.get(sym, ())):
+                self._panel[sym] = deque([tuple(r) for r in rows], maxlen=self._depth)
+
+
+def sessions_between(panel: Mapping[str, deque], after: str, before: str) -> int:
+    """Distinct session dates in a daily panel strictly between two ISO dates."""
+    return len({r[0] for dq in panel.values() for r in dq if after < r[0] < before})
 
 
 def atr_from_rows(rows, n: int) -> float:

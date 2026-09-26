@@ -8,11 +8,20 @@ short-horizon deviations, which then unwind. Hypothesis: during the month-end
 settlement window, FADE deviations of price from its recent rolling mean in
 liquid names; stay flat otherwise.
 
-The window is defined as the last `window_days` calendar days of the month
-rather than a fixed weekday, on purpose: NSE changed the monthly-expiry weekday
-over 2021-2026 (e.g. the Jun-2026 contract expires Tue 30-Jun, not a Thursday),
-so a fixed weekday would be wrong for part of the sample; the last-week window is
-robust to that and still brackets the expiry/settlement day.
+The window is the last `window_days` calendar days of the month. The code never
+computes an expiry date, and that calendar window is the registered rule. NSE
+moved monthly F&O expiry from the last Thursday of the month to the last
+Tuesday on 1 September 2025 (the Jun-2026 contract expires Tue 30-Jun). The
+last seven calendar days of a month hold each weekday once, so with
+window_days >= 7 the window always contains the expiry day, but where the
+expiry sits in it depends on the weekday the month ends on. Under
+Tuesday expiry a month ending Friday, Saturday, Sunday or Monday puts three or
+four of the window's five weekday sessions after expiry (Aug-2026: expiry
+Tue 25, window Tue 25 to Mon 31, four sessions after it), so in those months
+the sleeve mostly fades deviations after expiry, not into it. With
+window_days < 7 the expiry day can fall outside the window. Exchange holidays
+are not modelled: they remove sessions from the window and can move the expiry
+day, never the window.
 
 Defined-risk: an ATR stop on every position. Declarative targets — a signal is
 emitted every decision bar while a position is wanted; ceasing to emit IS the
@@ -45,8 +54,8 @@ class ExpiryStrategy(Strategy):
         return self.cfg.timeframe_bars * (self.cfg.z_lookback + 5)
 
     def _in_expiry_window(self, ts) -> bool:
-        """True in the last `window_days` calendar days of the month (the
-        monthly F&O settlement week, robust to the expiry-weekday change)."""
+        """True in the last `window_days` calendar days of the month. A pure
+        calendar test: the expiry date is never computed (module docstring)."""
         last_day = calendar.monthrange(ts.year, ts.month)[1]
         return (last_day - ts.day) < self.cfg.window_days
 

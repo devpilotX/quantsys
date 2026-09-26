@@ -120,7 +120,9 @@ class ExposureConfig(BaseModel):
 
 
 class RegimeLabelConfig(BaseModel):
-    risk_scaler: float = 1.0
+    # Multiplies total risk. 0 is the floor (flat in this regime): a negative
+    # value would pull the probability-blended scaler below that.
+    risk_scaler: float = Field(1.0, ge=0)
     strategy_weights: dict[str, float] = {}
 
 
@@ -275,10 +277,14 @@ class VolOptionsConfig(BaseModel):
 class ExpiryConfig(BaseModel):
     # Research candidate (Phase 4), DISABLED by default and unvalidated. Enabled
     # only inside the OOS test harness until/unless it clears the gate. Single
-    # pre-registered hypothesis (NOT to be tuned): NSE monthly F&O expiry (last
-    # Thursday) concentrates options OI; market-maker hedging + settlement flows
-    # mean-revert short-horizon price deviations into expiry. Rule: during the
-    # expiry-week window, FADE deviations from a rolling mean; flat otherwise.
+    # pre-registered hypothesis (NOT to be tuned): NSE monthly F&O expiry (moved
+    # from the last Thursday to the last Tuesday on 1 Sep 2025) concentrates
+    # options OI; market-maker hedging + settlement flows mean-revert
+    # short-horizon price deviations into expiry. Rule: in the last window_days
+    # calendar days of the month, FADE deviations from a rolling mean; flat
+    # otherwise. The window never looks at the expiry date: under Tuesday expiry
+    # a month ending Friday to Monday has most window sessions after expiry
+    # (see strategies/expiry.py).
     enabled: bool = False
     priority: int = 4
     timeframe_bars: int = 2           # 30-min bars on a 15-min decision clock
@@ -305,7 +311,7 @@ class FactorConfig(BaseModel):
     skip_bars: int = 21               # skip most-recent month (12-1 momentum)
     vol_lookback: int = 252           # low-vol factor window
     rebalance_bars: int = 21          # monthly rebalance cadence (resampled bars)
-    top_k: int = 30                   # longs (and shorts if market_neutral)
+    top_k: int = Field(30, ge=1)      # longs (and shorts if market_neutral)
     min_universe: int = 40            # emit nothing below this breadth (live-narrow safe)
     market_neutral: bool = True       # long top-K / short bottom-K, dollar-neutral
     atr_n: int = 14                   # ATR window for the per-name risk stop
@@ -353,7 +359,7 @@ class ReversalConfig(BaseModel):
     priority: int = 7
     lookback_days: int = 5
     rebalance_days: int = 5
-    top_k: int = 8
+    top_k: int = Field(8, ge=1)
     min_universe: int = 34
     market_neutral: bool = True
     atr_n: int = 14

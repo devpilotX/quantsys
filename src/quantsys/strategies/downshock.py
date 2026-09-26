@@ -19,13 +19,12 @@ residual beta instead.
 from __future__ import annotations
 
 import math
-from datetime import date, timedelta
 
 import numpy as np
 
 from quantsys.config.schema import DownShockConfig
 from quantsys.core.market_state import MarketState
-from quantsys.core.types import Signal
+from quantsys.core.types import InstrumentKind, Signal
 from quantsys.strategies._dailypanel import DailyPanelStrategy, atr_from_rows
 from quantsys.strategies.base import register
 
@@ -43,8 +42,9 @@ class DownShockStrategy(DailyPanelStrategy):
 
     # ------------------------------------------------------------- signals
     def generate_signals(self, state: MarketState) -> list[Signal]:
-        if self._ingest_daily(state):
-            self._on_session_roll()
+        elapsed = self._ingest_daily(state)
+        if elapsed:
+            self._on_session_roll(elapsed, _equities(state))
 
         out: list[Signal] = []
         for sym in sorted(self._active):
@@ -58,20 +58,22 @@ class DownShockStrategy(DailyPanelStrategy):
             ))
         return out
 
-    def _on_session_roll(self) -> None:
-        """A session date rolled: age the held book, then scan the freshly
-        finalized day for new down-shock events."""
+    def _on_session_roll(self, elapsed: int, tradeable: set[str]) -> None:
+        """`elapsed` sessions passed since the last one seen (more than one
+        after a restart that missed sessions): age the held book by that many,
+        then scan the freshly finalized day for new down-shock events among
+        the names the book can trade."""
         cfg = self.cfg
         for sym in list(self._active):
-            self._active[sym] -= 1
+            self._active[sym] -= elapsed
             if self._active[sym] <= 0:
                 self._active.pop(sym, None)
                 self._stops.pop(sym, None)
 
         candidates: list[tuple[float, str, float]] = []   # (z, sym, stop)
+        need = max(cfg.vol_window + 2, cfg.volume_window + 2,
+                   cfg.min_history_days, cfg.atr_n + 2)
         for sym, dq in sorted(self._panel.items()):
-            need = max(cfg.vol_window + 2, cfg.volume_window + 2,
-                       cfg.min_history_days, cfg.atr_n + 2)
             if len(dq) < need or sym in self._active:
                 continue
             rows = list(dq)
@@ -81,23 +83,37 @@ class DownShockStrategy(DailyPanelStrategy):
                 continue
             rets = np.diff(c) / c[:-1]
             r_t = rets[-1]
-            sigma = float(np.std(rets[-(cfg.vol_window + 1):-1]))   # lagged
+            # lagged, ddof=1 like the research rule's rolling(60).std()
+            sigma = float(np.std(rets[-(cfg.vol_window + 1):-1], ddof=1))
             if not (math.isfinite(sigma) and sigma > 0):
                 continue
             z = r_t / sigma
-            vol_hist = v[-(cfg.volume_window + 1):-1]
-            vol_mean = float(np.mean(vol_hist)) if vol_hist.size else 0.0
+            vol_win = v[-(cfg.volume_window + 1):]
+            # One NaN made the mean NaN, every comparison below False, and the
+            # event passed on z alone.
+            if not np.all(np.isfinite(vol_win)):
+                continue
+            vol_mean = float(np.mean(vol_win[:-1])) if vol_win.size > 1 else 0.0
             if vol_mean <= 0 or v[-1] <= 0:
                 continue   # no volume data (e.g. index rows) -> no event
             vol_ratio = float(v[-1]) / vol_mean
             if z > -cfg.z_threshold or vol_ratio < cfg.volume_ratio_min:
                 continue
+            shock_day = rows[-1][0]
             last = self._last_event.get(sym)
-            if last is not None:
-                gap = (date.fromisoformat(rows[-1][0])
-                       - date.fromisoformat(last))
-                if gap < timedelta(days=cfg.decluster_days):
-                    continue
+            # De-cluster in sessions from the previous qualifying shock day,
+            # as the research rule does. It used to count calendar days from
+            # the last entry, about 21 sessions instead of 30.
+            if last is not None and sum(1 for r in rows if last < r[0] <= shock_day) \
+                    < cfg.decluster_days:
+                continue
+            # The research rule records every de-clustered event, entered or
+            # not, so a capped or out-of-view event still starts a cluster.
+            self._last_event[sym] = shock_day
+            # A name outside the tier view cannot be traded; as a candidate it
+            # only took one of the max_concurrent slots and emitted nothing.
+            if sym not in tradeable:
+                continue
             a = atr_from_rows(rows, cfg.atr_n)
             if not (math.isfinite(a) and a > 0):
                 continue
@@ -109,7 +125,6 @@ class DownShockStrategy(DailyPanelStrategy):
                 break
             self._active[sym] = cfg.hold_days
             self._stops[sym] = stop
-            self._last_event[sym] = self._cur_date or ""
 
     # ----------------------------------------------------------- persistence
     def state_dict(self) -> dict:
@@ -126,3 +141,9 @@ class DownShockStrategy(DailyPanelStrategy):
         self._active = {k: int(v) for k, v in d.get("active", {}).items()}
         self._stops = {k: float(v) for k, v in d.get("stops", {}).items()}
         self._last_event = {k: str(v) for k, v in d.get("last_event", {}).items()}
+
+
+def _equities(state: MarketState) -> set[str]:
+    return {s for s in state.bars
+            if (inst := state.instruments.get(s)) is not None
+            and inst.kind == InstrumentKind.EQUITY}

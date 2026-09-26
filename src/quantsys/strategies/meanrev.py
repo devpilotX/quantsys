@@ -195,7 +195,10 @@ class MeanRevStrategy(Strategy):
             if a in used or b in used or key in held:
                 continue
             prev = self._pairs.get(key)
+            # Carry the stop latch with the cooldown: dropping it re-entered a
+            # just-stopped pair on the rescan bar while |z| was still wide.
             fresh[key] = {**fit, "dir": 0, "cooldown": prev["cooldown"] if prev else 0,
+                          "rearm": bool(prev.get("rearm")) if prev else False,
                           "bars_held": 0, "entry_absz": 0.0, "stop_px": 0.0}
             used.update((a, b))
         # in-position pairs keep their frozen episode params; flat ones refresh
