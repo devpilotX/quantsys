@@ -2,7 +2,7 @@
 
 Compares the engine's intended/known book against the broker's reported
 positions. Any mismatch beyond a lot tolerance is fed into
-RiskEngine.reconcile(), which FREEZES the engine (no orders) — flattening on
+RiskEngine.reconcile(), which FREEZES the engine (no orders): flattening on
 top of an untrusted book could double the error. This mirrors the core's
 kill-vs-halt semantics exactly.
 """

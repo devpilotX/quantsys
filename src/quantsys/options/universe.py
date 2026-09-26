@@ -1,4 +1,4 @@
-"""OptionUniverseManager — bridges chain data into the engine's instrument/bar
+"""OptionUniverseManager: bridges chain data into the engine's instrument/bar
 model so the sizer can size option legs exactly like any other instrument.
 
 Before each decision the runner calls register(): for every configured

@@ -1,12 +1,12 @@
 """Short-term cross-sectional reversal sleeve (daily panel, weekly cadence).
 
-NEW pre-registered hypothesis for Forward Study 2 — no historical validation
+NEW pre-registered hypothesis for Forward Study 2: no historical validation
 was run on our data (the forward paper record IS the test): long the past
 `lookback_days` losers, short the winners, dollar-neutral, re-ranked every
 `rebalance_days` session days. Declarative targets like factor: a signal is
 emitted every bar while a name is wanted; ceasing to emit is the exit. Stops
 are daily-ATR based. Breadth-gated (`min_universe`) and unseeded-safe, so it
-is a no-op in the intraday backtest — identical precedent to factor.
+is a no-op in the intraday backtest: identical precedent to factor.
 """
 
 from __future__ import annotations

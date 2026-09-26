@@ -1,7 +1,7 @@
 """Forward paper-tracker for the Pillar-4 DOWN-SHOCK underreaction signal.
 
 The gated backtest (docs/PILLAR4_EVENT_DRIVEN.md §8a) found a market-best lead that
-nonetheless FAILED the deflated-Sharpe gate (0.46 < 0.95) — most likely favourable
+nonetheless FAILED the deflated-Sharpe gate (0.46 < 0.95): most likely favourable
 regime / small-sample luck (OOS Sharpe 1.75 > IS 0.57). The ONLY honest way to tell
 real edge from luck is to watch it FORWARD, out-of-sample in real time, never by
 re-fitting the 2016-2026 sample.
@@ -10,7 +10,7 @@ This module does exactly that. The config is FROZEN from the backtest and NEVER 
 a 4σ + 2×-volume DOWN day → market-NEUTRAL SHORT (beta-hedged) the next session, hold
 10 trading days. Each run recomputes the forward record over [tracking_start, asof]
 (idempotent), where ``tracking_start`` is frozen at the first run, so every recorded
-event is genuinely after the backtest sample. It trades NOTHING — it only logs P&L the
+event is genuinely after the backtest sample. It trades NOTHING: it only logs P&L the
 signal WOULD have made, at zero risk. If the edge survives forward, it earns a real
 deployment case; if it was luck, you watch it fade.
 

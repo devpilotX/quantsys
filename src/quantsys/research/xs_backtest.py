@@ -12,8 +12,8 @@ drifted book back to target. A month whose rebalance cannot be formed keeps
 the held book earning.
 
 Portfolios:
-  * long_only  — equal-weight top-K by factor (carries market beta),
-  * long_short — equal-weight top-K long / bottom-K short, dollar-neutral
+  * long_only: equal-weight top-K by factor (carries market beta),
+  * long_short: equal-weight top-K long / bottom-K short, dollar-neutral
                  (each side = leverage, so gross = 2 x leverage, net = 0): the
                  pure-alpha / market-neutral test.
 

@@ -112,7 +112,7 @@ def test_live_runner_reports_adapter_present(live_runner):
 def test_warmup_seeds_histories_from_angel(live_runner, monkeypatch):
     """Startup warmup fetches recent candles and replays them through the
     engine (no execution) so strategies have their lookback at the first live
-    bar — the fix for the 'engine took no trades' day-1 symptom."""
+    bar: the fix for the 'engine took no trades' day-1 symptom."""
     from quantsys.data.history import BarHistory
 
     live_runner.histories = {s: BarHistory() for s in live_runner.instruments}
@@ -227,7 +227,7 @@ def test_set_mode_live_allowed_with_passing_backtest(live_runner, db, monkeypatc
 def test_loop_iteration_survives_transient_db_error(live_runner, monkeypatch):
     """A transient failure on a poll tick (e.g. the 2026-07-07 momentary
     'failed to resolve host postgres' DNS blip) must be logged and swallowed,
-    NOT propagated — otherwise run_forever exits and the container restarts,
+    NOT propagated: otherwise run_forever exits and the container restarts,
     re-running warmup + panel seeding and dumping warm sleeve state over a
     one-second hiccup."""
     def boom(*a, **k):

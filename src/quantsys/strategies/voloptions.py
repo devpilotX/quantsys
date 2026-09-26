@@ -1,4 +1,4 @@
-"""Volatility sleeve — defined-risk index/stock option spreads.
+"""Volatility sleeve: defined-risk index/stock option spreads.
 
 Edge: implied vs realized volatility on the underlying.
 - IV rich (IV/RV high): SELL premium with a credit vertical (defined risk).
@@ -14,7 +14,7 @@ selecting strikes each bar (declarative targets; the order diff rolls as needed)
 
 Disabled by default: it requires a live option-chain feed in
 state.extra['option_chains'] and the option legs registered as instruments
-(OptionUniverseManager). With no chain it emits nothing — safe no-op.
+(OptionUniverseManager). With no chain it emits nothing: safe no-op.
 """
 
 from __future__ import annotations

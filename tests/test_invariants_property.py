@@ -8,7 +8,7 @@ inputs someone thought of. Hypothesis generates the ones nobody thought of,
 which is where cap interactions actually break.
 
 Each test states the invariant as an executable property. Where an invariant is
-deliberately *not* absolute, that is asserted too — an untrue "always" is worse
+deliberately *not* absolute, that is asserted too: an untrue "always" is worse
 than a documented exception, because it stops people checking.
 """
 
@@ -109,7 +109,7 @@ def test_scale_symbol_scales_that_symbols_net_by_exactly_the_factor(
 
     The cap computes factor = cap/current from the symbol's NET exposure and
     then trusts that scaling brings it to exactly the cap. That only holds if
-    scaling every group touching the symbol scales its net by exactly `factor` —
+    scaling every group touching the symbol scales its net by exactly `factor`,
     including when the symbol appears in more than one concurrent group, which
     is the case a single-sleeve test never reaches (a future held by the trend
     sleeve and used as a pair leg at the same time).
@@ -222,7 +222,7 @@ def test_gross_leverage_cap_is_monotone_non_decreasing_in_equity(small_cfg, equi
 @SETTINGS
 @given(equity=equities)
 def test_resolve_is_deterministic_for_a_fresh_ladder(small_cfg, equity):
-    """Same equity, same config, same answer — hysteresis state aside.
+    """Same equity, same config, same answer: hysteresis state aside.
 
     Two fresh ladders must agree, otherwise a restart would re-size the book.
     """
@@ -240,7 +240,7 @@ def test_vol_targeter_is_the_one_scaler_allowed_to_grow_the_book(small_cfg):
 
     When the proposed book's volatility is below target, the scaler exceeds 1.0
     and increases exposure. That is correct behaviour, and it is exactly why the
-    vol targeter must run BEFORE the exposure caps — so the caps still bind
+    vol targeter must run BEFORE the exposure caps: so the caps still bind
     last. Pinning it here means a future reordering has to argue with a test
     rather than with a docstring.
     """

@@ -173,7 +173,7 @@ def test_min_lot_promotion_respects_equity_risk_cap():
 
 
 def test_min_lot_promotion_never_touches_spread_legs():
-    """Promoting one leg of a pair would corrupt the hedge ratio — multi-leg
+    """Promoting one leg of a pair would corrupt the hedge ratio: multi-leg
     groups are excluded from promotion and still drop whole."""
     state = _state_with({"A": 100.0, "B": 50.0}, equity=50_000_000.0,
                         kind=InstrumentKind.FUTURE, lot_size=500)

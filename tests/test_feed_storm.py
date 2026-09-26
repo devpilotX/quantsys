@@ -3,12 +3,12 @@
 Background (2026-06-26 audit): during market hours the paper engine's RSS ran
 away to ~23.5 GB and OOM'd every ~21 min. The trigger was the feed supervisor
 re-logging in (generateSession) on EVERY reconnect while a 'connected but
-silent' socket was force-reconnected every ~90 s — a re-auth storm that drove
+silent' socket was force-reconnected every ~90 s: a re-auth storm that drove
 the SDK into an SSL-race fast-resubscribe runaway.
 
 This test drives a connected-but-silent socket (no ticks) so the watchdog keeps
 force-reconnecting, and asserts the supervisor does NOT re-login on every
-reconnect. It is a STORM-CONTAINMENT test (mock socket, no real SSL) — it proves
+reconnect. It is a STORM-CONTAINMENT test (mock socket, no real SSL): it proves
 the reconnect/re-auth rate is bounded, NOT that the real-SDK memory leak is gone
 (that verdict stays open until a live session). Pure threads, no network.
 """
@@ -23,7 +23,7 @@ from quantsys.execution.marketdata import AngelWebSocketFeed, BarAggregator
 
 class _SilentSock:
     """A socket that 'connects' (blocks in connect()) but never delivers a tick;
-    connect() returns only when close_connection() is called — i.e. exactly the
+    connect() returns only when close_connection() is called: i.e. exactly the
     'connected but silent' feed the watchdog is meant to recycle."""
 
     def __init__(self) -> None:
@@ -69,7 +69,7 @@ def _run_silent_feed(seconds: float = 2.0, **overrides):
 
 def test_silent_feed_does_not_storm_reauth():
     """A connected-but-silent feed gets recycled by the watchdog repeatedly, but
-    the supervisor must NOT re-login on every reconnect — that broker hammering
+    the supervisor must NOT re-login on every reconnect: that broker hammering
     is what drove the SSL-race memory runaway. Re-auth must be rate-limited."""
     reconnects, reauths = _run_silent_feed()
     assert reconnects >= 4, f"watchdog should recycle the silent socket; got {reconnects} reconnects"

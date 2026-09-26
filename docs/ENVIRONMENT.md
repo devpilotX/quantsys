@@ -97,7 +97,7 @@ machine in September 2026:
 | scipy | 1.18.1 | 1.17.0, 1.16.2 |
 | sqlalchemy | 2.1.x | 2.0.44, 2.0.36 |
 
-`Unblock-File` does not help — that clears the zone marker, which is a different
+`Unblock-File` does not help: that clears the zone marker, which is a different
 mechanism.
 
 **Do not disable Smart App Control to work around this.** Turning it off cannot

@@ -5,7 +5,7 @@ format the backtester reads (one ``<SYMBOL>.csv`` per symbol with header
 Incremental + resumable: each run only fetches bars NEWER than the last row
 already in a symbol's CSV, so a nightly job grows the dataset to "massive"
 without re-downloading. Per-symbol failures are logged and skipped, never fatal.
-Read-only against the broker (getCandleData) — it never places an order.
+Read-only against the broker (getCandleData): it never places an order.
 
     python -m quantsys.data.fetch_history --out data/nse \
         --interval FIVE_MINUTE --start 2021-01-01
@@ -88,7 +88,7 @@ def main() -> None:
                         format="%(asctime)s %(levelname)s %(name)s %(message)s")
     # The SmartAPI SDK issues blocking HTTP calls with NO timeout of its own; a
     # half-open connection (e.g. the broker's weekend maintenance window) hangs
-    # generateSession/getCandleData forever — the 2026-06-28 quant-backtest
+    # generateSession/getCandleData forever: the 2026-06-28 quant-backtest
     # failure was exactly this (3h wall, <1s CPU, killed by systemd). A global
     # socket default turns any silent hang into a retryable error.
     import socket

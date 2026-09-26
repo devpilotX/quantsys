@@ -1,6 +1,6 @@
 "use client";
 
-/** Down-shock forward tracker — read-only research monitor for the Pillar-4
+/** Down-shock forward tracker: read-only research monitor for the Pillar-4
  * down-shock underreaction lead. It trades nothing; it shows the signal's honest
  * forward, out-of-sample record (the in-sample backtest passed 4/5 gate criteria
  * but failed the deflated Sharpe, so it must prove itself forward). */

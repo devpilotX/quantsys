@@ -92,7 +92,7 @@ class BarAggregator:
         """Emit every in-progress bar whose bucket window has fully elapsed.
 
         Without this, a symbol's bar only completes when its NEXT tick crosses
-        the bucket boundary — thin names complete seconds-to-minutes late (so a
+        the bucket boundary: thin names complete seconds-to-minutes late (so a
         poll-driven decision loop fires on partial cross-sections) and the last
         bar of the session never completes at all (no tick ever crosses 15:30).
         Returns the number of bars emitted."""
@@ -120,7 +120,7 @@ class AngelWebSocketFeed:  # pragma: no cover - network path
 
     The 2026-06-13 incident: the SDK hit 'max retry attempts reached' over a
     weekend, its connect() thread exited, nothing restarted it, and yet the
-    LiveRunner kept heart-beating — so the feed was silently dead at Monday's
+    LiveRunner kept heart-beating: so the feed was silently dead at Monday's
     open and the dashboard showed no data. The old code delegated all reconnect
     to the SDK and assumed feed loss would surface as a stale heartbeat; neither
     held. This wrapper owns reconnection so a dropped or token-expired feed
@@ -128,7 +128,7 @@ class AngelWebSocketFeed:  # pragma: no cover - network path
 
       * a supervisor thread (re)builds the socket and blocks in connect(); when
         connect() returns (SDK gave up / socket closed) it re-authenticates for
-        fresh tokens — Friday's token is dead by Monday — and reconnects, with
+        fresh tokens (Friday's token is dead by Monday) and reconnects, with
         capped exponential backoff;
       * a watchdog thread force-closes a socket that stops delivering ticks
         during market hours (a 'connected but silent' feed), which makes
@@ -164,7 +164,7 @@ class AngelWebSocketFeed:  # pragma: no cover - network path
         # Feed ACTIVITY window: session hours plus a pre-open lead so the socket
         # is already live for the first tick. Outside it the supervisor PARKS
         # instead of reconnect-churning against a broker that drops idle sockets
-        # overnight — that churn fed the 2026-06 SSL-race leak and a nightly
+        # overnight: that churn fed the 2026-06 SSL-race leak and a nightly
         # broken-pipe/restart cycle.
         self._active_fn = active_fn or (lambda: (
             self._is_open()
@@ -317,7 +317,7 @@ class AngelWebSocketFeed:  # pragma: no cover - network path
                 break
             # Reset backoff only when the socket actually delivered ticks. The old
             # code reset on "connection lasted >=30s", but a 'connected but silent'
-            # socket lives ~90s before the watchdog recycles it — that read as
+            # socket lives ~90s before the watchdog recycles it: that read as
             # healthy, pinned backoff at 1s and produced a reconnect storm (which
             # drove the SSL-race memory runaway). Now a silent socket backs off.
             if had_ticks:
@@ -327,7 +327,7 @@ class AngelWebSocketFeed:  # pragma: no cover - network path
                               max(self._initial_backoff, backoff * 2))
             # Re-auth is RATE-LIMITED: a fresh generateSession on every reconnect
             # hammered the broker and fed the runaway. The day's feed token stays
-            # valid, so refresh at most every reauth_min_interval — the first
+            # valid, so refresh at most every reauth_min_interval: the first
             # reconnect still refreshes, so a stale Monday token recovers promptly.
             if not self._active_fn():
                 continue  # session closed while connected: park, no reauth/backoff

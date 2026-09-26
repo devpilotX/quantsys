@@ -1,5 +1,5 @@
 """The go-live gate: real money stays impossible until every lock opens.
-These encode the project's hardest safety rule — do not weaken them."""
+These encode the project's hardest safety rule: do not weaken them."""
 
 from __future__ import annotations
 

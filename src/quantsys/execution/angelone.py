@@ -1,7 +1,7 @@
 """Angel One SmartAPI broker adapter.
 
 The SmartConnect SDK and the websocket client are imported lazily (inside
-methods) so this module loads — and the unit tests run — without the SDK or
+methods) so this module loads (and the unit tests run) without the SDK or
 any network. Inject a `transport` for tests; in production it defaults to the
 real SmartConnect.
 
@@ -163,7 +163,7 @@ class AngelOneBroker:
 
     def _login(self) -> None:
         """Authenticate (TOTP) and capture fresh access/refresh/feed tokens.
-        Does NOT pull the instrument master — that is connect()'s job; a feed
+        Does NOT pull the instrument master: that is connect()'s job; a feed
         reconnect re-logins without re-pulling the universe (see
         reconnect_feed_session)."""
         import pyotp
@@ -253,7 +253,7 @@ class AngelOneBroker:
         # Indices are ALSO resolvable by their NAME: config uses "NIFTY", but the
         # master's index symbol is "Nifty 50". Index rows win the name key over a
         # same-named non-index row, because only the AMXIDX token returns candle
-        # data — the bare spot row (token 26000) returns NONE, which is what left
+        # data: the bare spot row (token 26000) returns NONE, which is what left
         # the regime HMM starved and stuck in `warmup`.
         for name, inst in index_by_name.items():
             out[name] = inst
@@ -352,7 +352,7 @@ class AngelOneBroker:
         """Fetch OHLCV candles in [start, end] via getCandleData, chunked to
         Angel's per-request day limits and rate-limited. Returns
         (naive-IST ts, open, high, low, close, volume) tuples, ascending and
-        de-duplicated. Read-only — never places an order.
+        de-duplicated. Read-only: never places an order.
 
         ``start``/``end`` are naive IST wall-clock (the engine's clock); Angel
         returns +05:30 stamps which we strip back to naive IST so backtest and
@@ -393,7 +393,7 @@ class AngelOneBroker:
                 except Exception as e:  # pragma: no cover - network
                     last_err = e
                     if attempt < 5:
-                        # 2,4,8,16,32s — long enough to outlast a per-minute cap
+                        # 2,4,8,16,32s: long enough to outlast a per-minute cap
                         time.sleep(min(32, 2 ** (attempt + 1)))
             if resp is None:
                 raise BrokerError(f"getCandleData {symbol} failed after retries: "
@@ -514,7 +514,7 @@ class AngelOneBroker:
         inst = self._instruments.get(order.symbol)
         if inst is None:
             raise BrokerError(f"unknown instrument {order.symbol}")
-        # ordertag is the postback correlation key — must survive verbatim.
+        # ordertag is the postback correlation key: must survive verbatim.
         # Refuse rather than silently truncate (a truncated tag = lost fills).
         if len(order.client_order_id) > 20:
             raise BrokerError(
@@ -672,7 +672,7 @@ def _infer_kind(row: dict) -> InstrumentKind:
     seg = (row.get("exch_seg") or "").upper()
     sym = (row.get("symbol") or "").upper()
     # Cash indices (NIFTY 50, NIFTY BANK, ...) carry instrumenttype AMXIDX. They
-    # must be INDEX, not EQUITY — they are non-tradeable and their candle data
+    # must be INDEX, not EQUITY: they are non-tradeable and their candle data
     # lives under the AMXIDX token, not the bare spot row (see refresh_instruments).
     if (row.get("instrumenttype") or "").upper() in ("AMXIDX", "INDEX"):
         return InstrumentKind.INDEX

@@ -2,7 +2,7 @@
 
 Self-contained Black-Scholes (price, greeks, implied-vol solver) and an option
 chain provider interface, so the volatility strategy is a registry drop-in like
-any other alpha — it emits defined-risk multi-leg Signals the existing sizing
+any other alpha: it emits defined-risk multi-leg Signals the existing sizing
 and risk stack handle unchanged.
 
 No exotic dependencies; everything is closed-form or a bounded bisection.

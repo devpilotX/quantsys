@@ -1,4 +1,4 @@
-"""Generate the investor report (.docx) — quantsys, Forward Study 2.
+"""Generate the investor report (.docx): quantsys, Forward Study 2.
 
 The rendered file is intentionally gitignored (*.docx policy); this generator
 is the tracked source of truth. Honesty contract: every performance-related

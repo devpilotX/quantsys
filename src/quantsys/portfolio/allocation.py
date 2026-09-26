@@ -4,7 +4,7 @@ volatility targeter.
 Kelly: f_s = clip(kelly_fraction * mu_s / var_s, 0, f_cap) * regime_weight_s,
 with mu already shrunk toward zero by the edge estimator. Incubation: while a
 strategy has too little history for the online stats to mean anything, it gets
-a small floor allocation (it must trade to earn statistics — the classic
+a small floor allocation (it must trade to earn statistics: the classic
 online-Kelly chicken-and-egg). The floor is withdrawn early if evidence is
 already clearly negative.
 
@@ -12,7 +12,7 @@ Vol targeting runs on the PROPOSED BOOK against the instrument-return
 covariance (EWMA + diagonal shrinkage). Decision note: the spec sketches
 strategy-return covariance here; instrument covariance is used instead because
 it is observable from day one (no own-track-record needed), well conditioned,
-and directly measures the thing being capped — book P&L variance. Strategy
+and directly measures the thing being capped: book P&L variance. Strategy
 covariance still enters implicitly through per-strategy Kelly stats.
 """
 
@@ -58,7 +58,7 @@ class KellyAllocator:
                 audits.append(AuditEvent("kelly", "incubation_floor",
                                          f"{s}: n_eff={st.n_eff:.0f} t={t:.2f} f->{f_s:.3f}"))
             if cfg.explore_floor > 0.0 and f_s < cfg.explore_floor:
-                # forced, edge-agnostic exploration — paper-only plumbing
+                # forced, edge-agnostic exploration: paper-only plumbing
                 # validation, NOT withdrawn by negative evidence. The default
                 # (0.0) leaves live and the backtest gate fully honest.
                 f_s = cfg.explore_floor

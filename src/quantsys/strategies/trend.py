@@ -2,7 +2,7 @@
 
 Score = (1-w)*tanh(EMA-spread / ATR / scale) + w*breakout_state, with
 entry/exit hysteresis so positions don't flap around the threshold. The
-strategy emits a signal EVERY decision bar while it wants a position —
+strategy emits a signal EVERY decision bar while it wants a position:
 "stop emitting" IS the exit instruction (declarative targets, idempotent).
 """
 

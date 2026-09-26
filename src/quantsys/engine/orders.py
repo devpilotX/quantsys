@@ -2,7 +2,7 @@
 
 Rules:
 - Full exits (target 0) and risk-driven orders always go out.
-- Rebalance deltas smaller than max(1 lot, band * |target|) are skipped —
+- Rebalance deltas smaller than max(1 lot, band * |target|) are skipped:
   at small capital the band is wide (cost drag), at large capital narrow.
 - Sub-min-notional dribbles are skipped unless exiting.
 - A reduction of a symbol in cap_reducing_symbols (held above a cap, or cut
@@ -58,7 +58,7 @@ def diff_orders(
         cur = positions[sym].qty if sym in positions else 0
         tgt = net.get(sym, 0)
 
-        if kill:  # flatten unconditionally — before any delta short-circuit
+        if kill:  # flatten unconditionally: before any delta short-circuit
             if cur != 0:
                 out.append(OrderIntent(sym, -cur, ExecutionStyle.MARKET_SINGLE,
                                        Urgency.KILL, reason="kill_switch"))

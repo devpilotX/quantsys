@@ -1,6 +1,6 @@
 """The financial-safety tests: no path to a live/real-money action without
 fresh reauth + typed phrase + explicit cap. These encode the product's
-non-negotiables — do not weaken them."""
+non-negotiables: do not weaken them."""
 
 from __future__ import annotations
 
@@ -107,7 +107,7 @@ def test_live_request_queues_command_not_direct_flip(authed, totp, db):
     assert body["status"] == "queued"
     cmd = db.get(Command, body["command_id"])
     assert cmd is not None and cmd.kind == "set_mode" and cmd.status == "pending"
-    # CRITICAL: mode itself did NOT flip — only the engine may do that
+    # CRITICAL: mode itself did NOT flip; only the engine may do that
     mode = db.query(RuntimeConfig).filter(RuntimeConfig.key == "mode").first()
     assert mode.value["v"] == "paper"
     requested = db.query(RuntimeConfig).filter(

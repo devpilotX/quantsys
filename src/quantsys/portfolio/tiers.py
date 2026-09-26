@@ -4,7 +4,7 @@ execution style) step at thresholds with hysteresis; continuous parameters
 log-equity between tier anchors, so nothing jumps when E(t) drifts.
 
 Hysteresis: promotion is immediate at the threshold; demotion only when E
-falls below (1 - hysteresis) * threshold — an account oscillating around a
+falls below (1 - hysteresis) * threshold: an account oscillating around a
 boundary doesn't flap its whole configuration.
 """
 

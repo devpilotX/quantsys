@@ -1,4 +1,4 @@
-# Decision log — dashboard & control plane
+# Decision log: dashboard & control plane
 
 Every non-obvious choice, and every gap in the original spec that had to be
 filled, with the reason.
@@ -9,7 +9,7 @@ filled, with the reason.
    invents data". The ENTIRE safety chain (re-auth → phrase → cap → clean
    book → command queue) is built and tested; `CommandConsumer` returns
    `rejected: live execution adapter not installed`. Wiring the adapter flips
-   one branch — the door and its four locks are already in place.
+   one branch: the door and its four locks are already in place.
 
 2. **Command queue instead of direct config writes.** The API never mutates
    engine behaviour; it enqueues `commands` rows the engine acks. Engine truth
@@ -22,7 +22,7 @@ filled, with the reason.
    rows. The PG listener uses a sync connection on a daemon thread because
    psycopg async I/O can't run on uvicorn's Windows Proactor loop.
 
-4. **PaperBroker fills at bar close with the engine's own CostModel** —
+4. **PaperBroker fills at bar close with the engine's own CostModel**:
    brokerage/STT/exchange/SEBI/stamp/GST/slippage/impact per fill, persisted
    as a JSON breakdown. Honest paper economics, same code path that the cost
    gate uses. Equity feeds back into MarketState so sizing reacts (capital
@@ -48,7 +48,7 @@ filled, with the reason.
 
 8. **Hand-rolled UI kit instead of shadcn/ui.** ~250 lines of Card/Table/
    Badge/Modal/Gauge we fully control vs a large dependency tree the spec's
-   look doesn't need. TanStack Query + a small LiveProvider replace Zustand —
+   look doesn't need. TanStack Query + a small LiveProvider replace Zustand:
    the only true client state is the WS connection itself.
 
 9. **Single-origin everywhere.** SameSite=Strict cookies don't survive
@@ -65,7 +65,7 @@ filled, with the reason.
 11. **DB admin = pgweb container (full) + built-in read-only browser.** pgweb
     has no auth of its own → nginx IP-gates /dbadmin in addition to TLS. The
     in-app browser allows single-statement SELECT/EXPLAIN inside a read-only
-    transaction with a keyword blocklist — safe to expose behind the session.
+    transaction with a keyword blocklist: safe to expose behind the session.
 
 12. **Tests run on SQLite** (JSONB→JSON variant, BigInt→Integer PKs) so CI
     needs no Postgres; the NOTIFY publisher no-ops off-postgres. The
@@ -94,7 +94,7 @@ filled, with the reason.
 
 ## Phase 1-4 decisions (backtester → execution → options → deploy)
 
-17. **Backtester drives the real `decide()`** — SimBroker fills at bar close
+17. **Backtester drives the real `decide()`**: SimBroker fills at bar close
     with the engine's CostModel (slippage+impact are already explicit cost
     lines, so close-fill doesn't double-count). The equity==cash+MTM identity
     is asserted every bar. No strategy logic is re-implemented anywhere.
@@ -103,7 +103,7 @@ filled, with the reason.
     freeze, so "train" windows are in-sample warm-up (decisions run, estimators
     converge, NO execution) and the following window executes + scores OOS, with
     engine state carried forward exactly as live. The IS reference is a shadow
-    run on the train window (optimistic by construction — the gap IS the
+    run on the train window (optimistic by construction: the gap IS the
     degradation we report).
 
 19. **Anti-self-deception is mandatory, not optional.** Deflated Sharpe
@@ -120,7 +120,7 @@ filled, with the reason.
     This replaces the Phase-0 unconditional "live not installed" rejection.
 
 21. **Idempotent compact order ids.** `Q{MMDDHHMM}{symidx}{seq}` (+`-s{slice}`)
-    is ≤20 chars so it is Angel's `ordertag` verbatim — postback correlation
+    is ≤20 chars so it is Angel's `ordertag` verbatim: postback correlation
     never breaks. Deterministic in (bar, symbol, seq) so a retried decision
     re-derives the same id and can't double-submit; the adapter also keeps a
     client→broker id map and refuses (not truncates) an oversized tag.
@@ -128,7 +128,7 @@ filled, with the reason.
 22. **Reconcile-first, freeze-not-flatten.** The live step reconciles against
     the broker (ground truth) BEFORE deciding; a mismatch calls
     `RiskEngine.reconcile` → halt (no orders). Flattening on an untrusted book
-    could double the error — same kill-vs-halt semantics as the core.
+    could double the error: same kill-vs-halt semantics as the core.
 
 23. **TWAP/AC slice one-per-pump**, slices never exceed available lots, lot-
     aligned, remainder spread across the first slices. Urgency (KILL/risk-
@@ -145,7 +145,7 @@ filled, with the reason.
 
 25. **Instrument master wins, config is fallback.** `LiveRunner` merges the
     Angel master (lot/tick/token) over config values, which become labelled
-    warm-start fallbacks — the README's daily-refresh requirement, enforced.
+    warm-start fallbacks: the README's daily-refresh requirement, enforced.
 
 26. **Engine images by compose profile** (`demo`=synthetic, `paper`=live data
     no orders, `live`=real money). One image, three commands; `live` also needs
@@ -160,7 +160,7 @@ filled, with the reason.
   live-gate that consumes the result are all built and tested.
 - **Live execution has been BUILT and unit-tested with a mock transport but
   never run against the real broker.** The real-broker shakedown is the
-  paper-on-VPS window (GOLIVE.md step 2) — feed, postback, reconciliation,
+  paper-on-VPS window (GOLIVE.md step 2): feed, postback, reconciliation,
   rate limits can only be validated against live Angel One.
 - Live trading needs the rotated credentials first.
   `deploy/scripts/preflight.py` and `docs/GOLIVE.md` make the rest a mechanical
@@ -168,4 +168,4 @@ filled, with the reason.
 - Watchdog container for infra-level heartbeat-stale alerting (UI + in-app
   alert exist; an out-of-band cron belongs on the VPS).
 - Candle chart with trade markers (`CandleChart`) is built but not yet placed
-  on a page — add a /chart view once the live feed provides real bars.
+  on a page: add a /chart view once the live feed provides real bars.

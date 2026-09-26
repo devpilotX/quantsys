@@ -1,6 +1,6 @@
 """Single-decide-per-bar loop + durable paper cash (Forward Study 2 fixes).
 
-The old loop stepped on every non-empty drain — 3–5 decisions per 15-min bar,
+The old loop stepped on every non-empty drain: 3–5 decisions per 15-min bar,
 each on a partial cross-section, and never a decision on the session's close
 bar. And every restart reset paper cash to the durable float on top of a
 carried book (phantom equity at each 08:50 recycle). These tests pin the
@@ -51,7 +51,7 @@ def _rc_cleanup(db, *keys):
 
 @pytest.fixture()
 def paper_runner(db):
-    """Minimal paper LiveRunner with the mock transport — real engine, real
+    """Minimal paper LiveRunner with the mock transport: real engine, real
     PaperBroker, real Recorder against the test DB."""
     import threading
 

@@ -114,7 +114,7 @@ explain view renders that trail as recorded.
 ## Trust boundaries & invariants
 
 1. **The engine is the only writer of trading truth.** The API writes only
-   auth/audit/config/command rows. The dashboard renders DB rows verbatim —
+   auth/audit/config/command rows. The dashboard renders DB rows verbatim:
    `decisions.audit` is the engine's own AuditEvent trail, never re-derived.
 2. **Control actions are commands, not writes.** API → `commands` table →
    engine consumes, acts, acks with a result. `runtime_config['mode']` is
@@ -124,7 +124,7 @@ explain view renders that trail as recorded.
    separate supervised containers; any dashboard component can die without
    touching trading.
 4. **Events commit with rows.** With the PG bus, `pg_notify` fires inside the
-   recorder's transaction — a client can never see an event for a row that
+   recorder's transaction: a client can never see an event for a row that
    rolled back. With Redis, publish happens after commit (at-least-once via
    client snapshot refetch on reconnect).
 5. **Reconnect = resync.** The frontend invalidates every query on WS
@@ -141,7 +141,7 @@ explain view renders that trail as recorded.
 - Lockout: 5 failures → 15 min; identical error for wrong user/pass/TOTP.
 - **High-risk actions** (mode, capital, kill, flatten, config, strategy
   toggle) additionally require re-auth (password+TOTP) within a 5-minute
-  freshness window — enforced server-side by `require_fresh_reauth`.
+  freshness window: enforced server-side by `require_fresh_reauth`.
 - Going LIVE additionally requires the typed phrase `GO LIVE REAL MONEY`,
   an explicit deployable-capital cap, and a flat (or explicitly flattened)
   paper book. All four checks are server-side.
@@ -154,20 +154,20 @@ explain view renders that trail as recorded.
 - Bus backends behind one interface (`qsdash/bus.py`): Redis pub/sub in
   production, Postgres LISTEN/NOTIFY when Redis is absent (Windows dev).
   The PG listener runs on a dedicated thread (sync psycopg) bridged into the
-  event loop — immune to ProactorEventLoop limitations.
+  event loop: immune to ProactorEventLoop limitations.
 - WS hub (`qsdash/ws.py`): cookie-authenticated, topic-filtered fan-out,
   20 s ping. Oversized NOTIFY payloads degrade to `{ref:…}` and clients
-  refetch — nothing is truncated.
+  refetch: nothing is truncated.
 
 ## Mode & capital semantics
 
 - `mode` ∈ {paper, live}; every trading row carries it; the two universes are
   never aggregated.
 - Paper: `E(t)` = PaperBroker equity (cash + MTM), seeded from operator-set
-  `paper_capital` (₹1L–₹20cr) — simulate any tier on demand.
+  `paper_capital` (₹1L–₹20cr): simulate any tier on demand.
 - Live (when the adapter ships): `E(t)` from broker balance, clamped by
   `min(E, E×deployable_cap_frac, deployable_cap_abs)` in
-  `Runner.effective_equity` — the algo cannot size beyond the cap.
+  `Runner.effective_equity`: the algo cannot size beyond the cap.
 - Kill semantics mirror the engine core: operator kill arms the
   max-drawdown latch (flatten everything, manual re-arm); reconciliation
   halt freezes with no orders at all (state not trusted).

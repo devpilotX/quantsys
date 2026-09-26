@@ -1,4 +1,4 @@
-"""The live-trading gate — engine-side, defence in depth.
+"""The live-trading gate: engine-side, defence in depth.
 
 The dashboard already enforces the operator chain (re-auth + typed phrase +
 deployable cap + clean book) before it queues set_mode(live). This gate is the
@@ -7,7 +7,7 @@ live. All conditions must hold:
 
 1. A live execution adapter is attached and connected (paper runner => never).
 2. The operator has explicitly armed live trading out-of-band
-   (QS_LIVE_ARMED=1 in the engine's environment — not settable from the UI).
+   (QS_LIVE_ARMED=1 in the engine's environment: not settable from the UI).
 3. The backtester gate passed: a NON-synthetic backtest_runs row exists whose
    metrics clear the robustness bar (positive deflated OOS Sharpe, low P(SR<0)).
 4. The order postback is authenticated: ANGEL_WEBHOOK_SECRET is set, at least
@@ -59,7 +59,7 @@ class GateStatus:
 
 
 def backtest_gate(db: Session) -> GateStatus:
-    """Condition 3 only — usable standalone by the dashboard to show status."""
+    """Condition 3 only: usable standalone by the dashboard to show status."""
     runs = (db.query(BacktestRun).order_by(BacktestRun.id.desc()).limit(50).all())
     real = [r for r in runs if not (r.metrics or {}).get("is_synthetic", True)]
     if not real:

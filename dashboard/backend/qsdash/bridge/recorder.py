@@ -1,6 +1,6 @@
 """Recorder: persists every engine output to Postgres and publishes events in
 the SAME transaction (NOTIFY is transactional; with Redis the publish happens
-after commit). The dashboard reads only what lands here — single source of
+after commit). The dashboard reads only what lands here: single source of
 truth, no parallel bookkeeping.
 """
 

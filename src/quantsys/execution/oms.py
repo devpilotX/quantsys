@@ -1,6 +1,6 @@
 """Order Management System: turns engine OrderIntents into broker orders,
 tracks their lifecycle, enforces idempotency, and drives tier-aware execution
-algos. Venue-agnostic — works against any Broker (SimBroker in tests,
+algos. Venue-agnostic: works against any Broker (SimBroker in tests,
 AngelOneBroker live).
 
 Two rules keep a lost response or a restart from doubling an order:

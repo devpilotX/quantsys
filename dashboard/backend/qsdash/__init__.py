@@ -1,4 +1,4 @@
-"""qsdash — live dashboard & control plane for the quantsys trading engine.
+"""qsdash: live dashboard & control plane for the quantsys trading engine.
 
 Architecture contract (see docs/ARCHITECTURE.md):
 - The ENGINE process is the only writer of trading truth (decisions, orders,

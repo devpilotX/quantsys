@@ -62,7 +62,7 @@ class Runner:
         self.deployable_cap_abs: float | None = None
         self._disabled: set[str] = set()
         self._last_prices: dict[str, float] = {}
-        # the paper runner can NEVER trade real money — the live gate sees this
+        # the paper runner can NEVER trade real money: the live gate sees this
         self.supports_live = False
         self.adapter_connected = False
         self.paused = False              # operator pause: halt decisions, no flatten
@@ -134,8 +134,8 @@ class Runner:
 
     def apply_config_override(self, key: str, value) -> None:
         """Apply an operator override by rebuilding the engine with the new
-        config and round-tripping its state (persistence is bit-identical —
-        proven by the core tests)."""
+        config and round-tripping its state (the core tests prove that
+        persistence is bit-identical)."""
         parts = key.split(".")
         obj = self.cfg
         for p in parts[:-1]:
@@ -178,7 +178,7 @@ class Runner:
 
         if self.paused:
             # operator pause: bars recorded (strategies stay warm), but the
-            # decision loop is halted — no decide, no execute, NO flatten.
+            # decision loop is halted: no decide, no execute, NO flatten.
             self.recorder.heartbeat(
                 status="paused", market_open=is_session_open(ts),
                 detail={"data_source": data_source, "bar_ts": ts.isoformat(),

@@ -51,7 +51,7 @@ class OnlineEdgeStats:
 
     @property
     def mean(self) -> float:
-        """Shrunk mean — what the allocator must use."""
+        """Shrunk mean: what the allocator must use."""
         if self.s0 <= 0:
             return 0.0
         return self.raw_mean * (self.s0 / (self.s0 + self.prior_obs))
@@ -72,8 +72,8 @@ class OnlineEdgeStats:
 
 class Strategy(ABC):
     """Uniform strategy interface. Implementations must be deterministic
-    functions of (MarketState, own persisted state) — no I/O, no clocks,
-    no randomness — so backtest and live are bit-identical."""
+    functions of (MarketState, own persisted state): no I/O, no clocks,
+    no randomness: so backtest and live are bit-identical."""
 
     name: str
 
@@ -89,12 +89,12 @@ class Strategy(ABC):
 
     def on_seeded(self) -> None:
         """Called once after out-of-band daily-panel seeding completes (live/
-        paper only — the backtest never seeds). Panel sleeves that rebalance on
+        paper only: the backtest never seeds). Panel sleeves that rebalance on
         an internal cadence override this to force a rebalance on the next bar:
         warmup runs decide() BEFORE the panel is seeded, so the first
         (empty-panel) rebalance already advanced the cadence counter, and
         without this the sleeve stays a no-op until the counter happens to roll
-        over again — which, across engine restarts that re-run warmup, is never.
+        over again: which, across engine restarts that re-run warmup, is never.
         Default: no-op (event-driven / every-bar sleeves need nothing)."""
         return None
 

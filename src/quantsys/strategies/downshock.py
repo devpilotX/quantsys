@@ -1,18 +1,18 @@
-"""Pillar 4 — down-shock underreaction sleeve (event-driven, daily panel).
+"""Pillar 4: down-shock underreaction sleeve (event-driven, daily panel).
 
 The FROZEN research rule (docs/PILLAR4_EVENT_DRIVEN.md §8a + gate table; the
 zero-risk tracker has logged it forward since 2026-06-25): after a >= z_threshold
 sigma one-day DOWN move on >= volume_ratio_min x average volume, the stock keeps
-drifting down — enter SHORT at the next session, hold `hold_days` sessions,
+drifting down: enter SHORT at the next session, hold `hold_days` sessions,
 daily-ATR stop. Events are de-clustered per name; at most `max_concurrent`
 concurrent shorts (most-negative z first).
 
 Historical verdict was DEAD on the deflated-Sharpe gate (0.46 < 0.95) despite
-4/5 passes and hold-out Sharpe 1.75 — this sleeve exists to collect the
+4/5 passes and hold-out Sharpe 1.75: this sleeve exists to collect the
 forward paper evidence the closeout sanctioned, not because an edge is proven.
 Deviation from the research construction, disclosed: no per-trade index-future
 beta hedge (one hedge lot exceeds the explore-floor group budget and lot
-rounding would drop every group) — the portfolio's net-exposure caps bound the
+rounding would drop every group): the portfolio's net-exposure caps bound the
 residual beta instead.
 """
 

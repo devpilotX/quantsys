@@ -1,4 +1,4 @@
-"""NSE F&O bhavcopy adapter — free, official; for S1 (BANKNIFTY PCR) + SSF universe.
+"""NSE F&O bhavcopy adapter: free, official; for S1 (BANKNIFTY PCR) + SSF universe.
 
 From each day's free F&O bhavcopy this extracts only what the combine test needs
 and discards the (large) raw file:

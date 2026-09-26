@@ -1,6 +1,6 @@
 """Typed configuration tree (pydantic v2). YAML files validate against this;
 code defaults here ARE the documented baseline. Every tunable in the system
-lives in this tree — nothing risk-relevant is hard-coded anywhere else.
+lives in this tree: nothing risk-relevant is hard-coded anywhere else.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ class EngineConfig(BaseModel):
     min_order_notional: float = 5_000.0
     # Equity-scaled dust floor: effective min notional = max(min_order_notional,
     # min_order_frac * equity). A flat Rs5k floor is meaningless on a Rs15cr
-    # book — 1-share rebalance dribbles passed it and churned every bar. 0 = off
+    # book: 1-share rebalance dribbles passed it and churned every bar. 0 = off
     # (small accounts keep the flat floor).
     min_order_frac: float = 0.0
     index_symbol: str = "NIFTY"         # regime features source
@@ -89,7 +89,7 @@ class KellyConfig(BaseModel):
     # (same EWMA estimator, soft-assigned by regime probability) tilt each
     # strategy's f by clip(1 + beta * sum_label p_label * tanh(t_label / 2),
     # min, max) where t is the bucket's shrunk t-stat with n_eff capped. The
-    # allocation ADAPTS to which regimes a sleeve has actually earned in —
+    # allocation ADAPTS to which regimes a sleeve has actually earned in:
     # walk-forward by construction (only past bars enter the buckets).
     # beta = 0 (default) disables the tilt entirely: live/backtest unchanged.
     regime_tilt_beta: float = 0.0
@@ -329,7 +329,7 @@ class FactorConfig(BaseModel):
 
 
 class DownShockConfig(BaseModel):
-    # Pillar 4 event sleeve — the down-shock underreaction drift, promoted from
+    # Pillar 4 event sleeve: the down-shock underreaction drift, promoted from
     # the zero-risk tracker to a PAPER sleeve for the forward study. The rule is
     # the FROZEN research config (docs/PILLAR4_EVENT_DRIVEN.md §8a + gate table:
     # z 3.5 / hold 10, IS-selected, hold-out Sharpe 1.75 but deflated 0.46 →
@@ -359,10 +359,10 @@ class DownShockConfig(BaseModel):
 
 class ReversalConfig(BaseModel):
     # NEW pre-registered hypothesis (Forward Study 2): short-term cross-sectional
-    # reversal — long the past-week losers, short the winners, dollar-neutral,
+    # reversal: long the past-week losers, short the winners, dollar-neutral,
     # weekly cadence on the self-seeded daily panel (same machinery as factor).
     # Classic anomaly (Jegadeesh 1990); NO historical validation was run on our
-    # data (turnover is high and costs likely bite — that is exactly what the
+    # data (turnover is high and costs likely bite: that is exactly what the
     # forward paper record measures). DISABLED by default.
     enabled: bool = False
     priority: int = 7
@@ -377,7 +377,7 @@ class ReversalConfig(BaseModel):
 
 
 class TomConfig(BaseModel):
-    # NEW pre-registered hypothesis (Forward Study 2): turn-of-month index tilt —
+    # NEW pre-registered hypothesis (Forward Study 2): turn-of-month index tilt:
     # long index futures from the last `days_before` WEEKDAYS of the month
     # through the first `days_after` weekdays of the next (documented
     # institutional-flow calendar effect; weekday approximation of session days,

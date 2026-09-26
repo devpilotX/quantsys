@@ -12,7 +12,7 @@ The cost gate (binds hard at T1/T2): a NEW trade group must clear
     expected_edge_R * risk_rupees >= tier.min_cost_multiple * round_trip_cost.
 Existing positions whose signal persists are not gated (gating a held position
 would force-pay the exit cost the gate is trying to avoid). Equity costs are
-gated at delivery rates — worst case, capital-preservation bias.
+gated at delivery rates: worst case, capital-preservation bias.
 """
 
 from __future__ import annotations

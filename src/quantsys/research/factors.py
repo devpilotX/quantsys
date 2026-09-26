@@ -3,15 +3,15 @@
 Everything here is computable from the bhavcopy panel with NO fundamentals, so it
 is honest about what free point-in-time data supports. Factors implemented:
 
-  * momentum    — 12-1 month total return (skip the most recent month)
-  * low_vol     — negative trailing daily-return volatility (low-risk anomaly)
-  * reversal    — negative last-month return (short-term mean reversion)
-  * illiquidity — Amihud |ret|/turnover (illiquidity premium)
+  * momentum: 12-1 month total return (skip the most recent month)
+  * low_vol: negative trailing daily-return volatility (low-risk anomaly)
+  * reversal: negative last-month return (short-term mean reversion)
+  * illiquidity: Amihud |ret|/turnover (illiquidity premium)
 
 Factors NOT implemented (require point-in-time fundamentals that free data does
 not give without look-ahead/survivorship bias): value (P/B, P/E), quality (ROE,
 accruals), and true size (market cap needs shares outstanding). These are left as
-documented stubs rather than fabricated — see `UNAVAILABLE_FACTORS`.
+documented stubs rather than fabricated: see `UNAVAILABLE_FACTORS`.
 
 Corporate actions: bhavcopy prices are UNADJUSTED. NSE enforces ~±20% intraday
 price bands, so any overnight gap beyond the band is a split/bonus, not a return.

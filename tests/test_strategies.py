@@ -70,7 +70,7 @@ def _pair_state(a, b, equity=1e6):
 
 def test_meanrev_detects_pair_and_trades_dislocation():
     # seed chosen for ADF power: 150 obs of a true cointegrated pair can still
-    # miss the 0.05 gate by sampling luck (seed 11 gives p=0.068) — that is the
+    # miss the 0.05 gate by sampling luck (seed 11 gives p=0.068): that is the
     # filter working as specified, not a detection bug
     a, b = cointegrated_pair(220, beta=1.0, kappa=0.12, seed=31)
     strat = MeanRevStrategy(MR_CFG)

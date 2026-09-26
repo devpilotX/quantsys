@@ -2,7 +2,7 @@
 
 Identical orchestrator contract to the live runner (post_bar THEN decide,
 fills at the same bar's close). The accounting identity equity == cash + MTM
-is asserted every bar — any drift is a bug, not noise.
+is asserted every bar: any drift is a bug, not noise.
 """
 
 from __future__ import annotations
@@ -75,7 +75,7 @@ def run_backtest(
 
     warmup_bars: initial bars where signals are ingested (post_bar/decide run,
     keeping the engine's online stats live-faithful) but orders are NOT
-    executed — the book stays flat while estimators converge. Equity sampling
+    executed: the book stays flat while estimators converge. Equity sampling
     starts after warmup.
     score_from: alternatively, execute/score only from this timestamp.
     engine/broker: pass existing instances to continue a session (walk-forward
@@ -147,7 +147,7 @@ def run_backtest(
         if not in_warmup:
             broker.execute(decision, last_prices, ts, bar_ts=last_bar_ts)
             equity = broker.equity(last_prices)
-            # accounting identity — hard invariant
+            # accounting identity: hard invariant
             mtm = broker.mtm(last_prices)
             assert abs(equity - (broker.cash + mtm)) < 1e-6, "equity != cash + MTM"
             gross, net = broker.exposures(last_prices)

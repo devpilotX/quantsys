@@ -2,7 +2,7 @@
 
 Fractional sizing derives every non-parent leg from the parent notional, so a
 pair's hedge ratio is exact by construction. `finalize()` then rounds each leg
-to whole lots *independently*, with floor division — and the legs do not round
+to whole lots *independently*, with floor division: and the legs do not round
 by the same proportion. A pair intended at 7.0 / 2.4 lots ships as 7 / 2, which
 is 17% under-hedged.
 
@@ -74,7 +74,7 @@ def test_material_ratio_drift_is_rejected_rather_than_shipped():
 
 
 def test_tolerable_ratio_drift_is_allowed_and_recorded():
-    """Many lots per leg: rounding error is immaterial, so the trade proceeds —
+    """Many lots per leg: rounding error is immaterial, so the trade proceeds,
     but the realised drift is still written to the audit trail."""
     state = _state({"A": 100.0, "B": 100.0}, {"A": 1, "B": 1})
     book = _pair_book(state, qty_a=1000.0, qty_b=500.4)

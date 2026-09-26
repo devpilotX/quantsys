@@ -9,7 +9,7 @@ import pyotp
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 
-_ph = PasswordHasher()  # argon2id defaults (time_cost=3, 64MiB) — fine for 1 user
+_ph = PasswordHasher()  # argon2id defaults (time_cost=3, 64MiB): fine for 1 user
 
 
 def hash_password(password: str) -> str:

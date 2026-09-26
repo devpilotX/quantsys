@@ -1,10 +1,10 @@
-"""Forward Study 2 — pre-deployment sanity checks on cached daily data.
+"""Forward Study 2: pre-deployment sanity checks on cached daily data.
 
 REPORTING, not selection: the deployed configs are frozen in config/base.yaml
 regardless of these numbers (reversal 5d/8, tom -2/+3). This script documents
 (a) what the frozen configs would have done historically net of costs, (b) the
 sensitivity neighborhood with honest multiple-testing accounting, and (c) the
-turn-of-month effect's presence on our universe — so the Study-2 registration
+turn-of-month effect's presence on our universe: so the Study-2 registration
 states its priors with evidence attached, exactly like the closeout demanded.
 
 Data: data_cache/bhavcopy/panel_2016_2026.parquet (point-in-time, free NSE).

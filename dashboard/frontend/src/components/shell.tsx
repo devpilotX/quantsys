@@ -2,7 +2,7 @@
 
 /** AppShell: sidebar nav + always-visible status bar.
  * The status bar is the safety surface: MODE badge (paper/live), engine
- * heartbeat, market session, WS connection — visible on every page, always.
+ * heartbeat, market session, WS connection: visible on every page, always.
  */
 
 import clsx from "clsx";

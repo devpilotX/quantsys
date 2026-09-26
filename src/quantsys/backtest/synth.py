@@ -3,7 +3,7 @@ cycle, session-aware NSE timestamps. Used by the backtester's mechanical
 validation and by the dashboard's dev runner (single implementation).
 
 Synthetic data validates the MACHINE (accounting, no-lookahead, costs,
-determinism) — it is NOT evidence of edge. Real conclusions require real
+determinism): it is NOT evidence of edge. Real conclusions require real
 point-in-time NSE history via the execution layer's historical fetcher.
 """
 

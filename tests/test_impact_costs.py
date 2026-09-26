@@ -60,7 +60,7 @@ def _decision(sym: str, qty: int, sigma: dict[str, float] | None) -> Decision:
 
 @pytest.fixture(scope="module")
 def liquid(cfg):
-    """First instrument that actually has an ADV — impact is only defined there.
+    """First instrument that actually has an ADV: impact is only defined there.
 
     cfg.universe[0] is the NIFTY *index*, which has adv=None by design, so
     indexing the universe blindly silently disables the very term under test.
@@ -140,7 +140,7 @@ def test_decide_publishes_the_sigma_it_used(cfg, bars):
 
     Asserts two things over a real run: the engine publishes a non-empty
     estimate once histories are warm, and every symbol it ordered or targeted
-    carries one — so no fill can skip impact. (On the base config over
+    carries one: so no fill can skip impact. (On the base config over
     synthetic bars the cost gate legitimately blocks most trades, which is why
     the target-level assertion carries the weight rather than order count.)
     """

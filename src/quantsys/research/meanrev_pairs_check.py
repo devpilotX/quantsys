@@ -14,7 +14,7 @@ clock):
      Sharpe with n_trials = (#cointegration tests) x (#z-values).
 
 Pre-registered interpretation (2026-06-26): even a positive hold-out is "one
-fragile pair, not a strategy" — only TCS|INFY is Bonferroni-robust. The live
+fragile pair, not a strategy": only TCS|INFY is Bonferroni-robust. The live
 meanrev is separately MIS-SPECIFIED (intraday 15-min / ~12-day lookback cannot
 see 28-63 day half-lives), a code/config defect. Conclusion either way: meanrev
 is not deployable; disable it for live.
@@ -151,7 +151,7 @@ def _sharpe_pp(r):
 
 def _deflated_sharpe(sel_pp, trial_returns, n_trials):
     """Bailey-Lopez de Prado deflated Sharpe. SR* (expected max under the null)
-    uses the NULL variance of the Sharpe ESTIMATOR (1+0.5 SR^2)/(T-1) — NOT the
+    uses the NULL variance of the Sharpe ESTIMATOR (1+0.5 SR^2)/(T-1): NOT the
     sample variance of a few clustered grid Sharpes, which is degenerate."""
     rr = np.asarray(trial_returns)
     sk, ku, T = float(_skew(rr)), float(_kurt(rr, fisher=False)), len(rr)

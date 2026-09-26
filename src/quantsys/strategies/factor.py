@@ -1,8 +1,8 @@
-"""Pillar 2 — broad-universe cross-sectional equity factors (momentum + low-vol)
+"""Pillar 2: broad-universe cross-sectional equity factors (momentum + low-vol)
 running on an internal DAILY panel.
 
 The original expression resampled ~13 months of intraday decision bars, which a
-freshly started live engine cannot have — "enabled" silently meant "wait a
+freshly started live engine cannot have: "enabled" silently meant "wait a
 year". This version keeps its own per-symbol daily OHLC panel instead:
 
   * seeded once at startup from broker daily candles (LiveRunner does this for
@@ -18,7 +18,7 @@ daily-ATR based, from the same panel.
 
 Honesty notes: EQUITY-only by design (an index future inside a cross-sectional
 stock ranking is a category error); still gated by ``min_universe`` breadth, so
-it remains a safe no-op on narrow books or when unseeded — including in the
+it remains a safe no-op on narrow books or when unseeded: including in the
 backtest, which never seeds it. Forward paper study parameters are frozen in
 docs/FORWARD_STUDY.md.
 """
@@ -55,7 +55,7 @@ class FactorStrategy(Strategy):
     # ------------------------------------------------------------- seeding
     def seed_daily(self, symbol: str, rows) -> None:
         """Load daily history: rows of (ts_or_date, open, high, low, close, vol)
-        ascending — the broker candle tuple shape. Replaces any prior seed."""
+        ascending: the broker candle tuple shape. Replaces any prior seed."""
         dq: deque[tuple[str, float, float, float]] = deque(maxlen=self._depth)
         for r in rows:
             ts = r[0]
@@ -155,7 +155,7 @@ class FactorStrategy(Strategy):
         need = cfg.lookback_bars + cfg.skip_bars + 1
         # names that fell out of the tier view stop receiving live rows; a
         # panel whose newest row is stale would otherwise rank on frozen
-        # prices forever — drop it from the cross-section instead
+        # prices forever: drop it from the cross-section instead
         stale_before = None
         if self._cur_date is not None:
             stale_before = (date.fromisoformat(self._cur_date)

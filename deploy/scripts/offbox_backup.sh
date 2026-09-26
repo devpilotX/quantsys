@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# quantsys off-box backup — takes a FRESH pg_dump of the live DB, encrypts it
+# quantsys off-box backup: takes a FRESH pg_dump of the live DB, encrypts it
 # symmetrically (aes-256-cbc, pbkdf2 200k iterations; passphrase is
-# BACKUP_PASSPHRASE in deploy/.env — gitignored, NEVER in the repo), and ships
+# BACKUP_PASSPHRASE in deploy/.env: gitignored, NEVER in the repo), and ships
 # it to the operator's Telegram chat via the bot API. Telegram's cloud is the
 # off-box copy, and the daily arrival doubles as a delivery heartbeat.
 # Appends one OK/FAIL line to deploy/_audit/offbox.log, which selfcheck.sh

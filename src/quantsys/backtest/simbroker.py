@@ -1,4 +1,4 @@
-"""SimBroker — in-memory execution venue for backtests.
+"""SimBroker: in-memory execution venue for backtests.
 
 Fill model (documented assumptions):
 - Order intents fill in full at the decision bar's close price. The engine's

@@ -33,13 +33,13 @@ SESSION_CLOSE = (15, 30)
 # IST is the engine's single clock (see module docstring): every timestamp is
 # naive and means exchange wall-clock. ``now_ist`` is what the live data layer
 # stamps ticks/bars with so they bucket on the NSE session regardless of the
-# host/container timezone — the VPS runs in UTC, and using a bare datetime.now()
+# host/container timezone: the VPS runs in UTC, and using a bare datetime.now()
 # there silently shifts every bar by 5h30 and breaks session bucketing.
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
 def now_ist() -> datetime:
-    """Naive IST wall-clock — the one timestamp convention across the engine."""
+    """Naive IST wall-clock: the one timestamp convention across the engine."""
     return datetime.now(IST).replace(tzinfo=None)
 
 

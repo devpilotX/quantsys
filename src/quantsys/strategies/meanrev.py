@@ -65,7 +65,7 @@ def _adf_pvalue(resid: np.ndarray) -> float | None:
     This is the gate the entire pairs sleeve depends on, so a failure must be
     *observable*. A bare `except Exception: return None` here would make a
     library contract change (or a degenerate residual) indistinguishable from
-    the honest answer "no cointegrated pair exists" — which is exactly the
+    the honest answer "no cointegrated pair exists": which is exactly the
     state this sleeve reports in production. Failures are logged and the
     exception types are narrowed to the genuine numerical ones.
     """
@@ -116,7 +116,7 @@ class MeanRevStrategy(Strategy):
             a_sym, b_sym = key.split("|")
             pa, pb = state.price(a_sym), state.price(b_sym)
             if not (math.isfinite(pa) and math.isfinite(pb) and pa > 0 and pb > 0):
-                # data gap: fail safe — flatten by not emitting; flat pairs drop
+                # data gap: fail safe; flatten by not emitting; flat pairs drop
                 if p["dir"] == 0:
                     del self._pairs[key]
                 else:
@@ -145,7 +145,7 @@ class MeanRevStrategy(Strategy):
                     p["cooldown"] = cfg.cooldown_bars
                     p["rearm"] = True   # no re-entry until z normalises
                 elif adverse_z <= cfg.z_exit:
-                    p["dir"] = 0  # mean reached — take profit
+                    p["dir"] = 0  # mean reached: take profit
                 elif p["bars_held"] > cfg.time_stop_half_lives * hl_decision_bars:
                     p["dir"] = 0  # OU clock expired; thesis stale
                     p["cooldown"] = cfg.cooldown_bars
@@ -241,7 +241,7 @@ class MeanRevStrategy(Strategy):
             return None
         ratio = max(k1, k2) / max(min(k1, k2), 1e-12)
         if ratio > cfg.kappa_stability:
-            return None  # unstable reversion speed — reject (spec requirement)
+            return None  # unstable reversion speed: reject (spec requirement)
 
         return {
             "beta": beta,

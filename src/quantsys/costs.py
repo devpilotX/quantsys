@@ -17,7 +17,7 @@ June 2026 (Budget 2026 STT hike effective 2026-04-01):
   futures 0.002%, options 0.003%.
 
 Slippage is a per-kind spread-cost estimate; market impact uses a square-root
-model  impact = coeff * sigma_daily * sqrt(qty / ADV)  charged on notional —
+model  impact = coeff * sigma_daily * sqrt(qty / ADV)  charged on notional:
 this is what makes the ADV constraint bind economically at T5/T6, not just as
 a hard cap.
 """
@@ -69,8 +69,8 @@ class CostModel:
 
         `sigma_daily` is REQUIRED for the square-root impact term to be charged
         at all: passing None (or an instrument with no ADV) yields impact=0.
-        Callers on a fill path must pass the engine's estimate — see
-        Decision.sigma_daily — otherwise reported P&L silently excludes impact
+        Callers on a fill path must pass the engine's estimate: see
+        Decision.sigma_daily: otherwise reported P&L silently excludes impact
         while the cost gate includes it.
         """
         cfg = self.cfg

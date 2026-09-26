@@ -35,7 +35,7 @@ VPS) public IP OK. Log in at https://quant.devpilotx.com.
 ## 2. Paper-on-VPS validation window (the first real test of live plumbing)
 
 Run paper mode against the **live Angel One feed** for a meaningful window (a
-few full sessions). This is the first time these are exercised — none can be
+few full sessions). This is the first time these are exercised: none can be
 tested locally:
 
 - [ ] WebSocket 2.0 tick feed flows; bars aggregate on the session clock.
@@ -60,7 +60,7 @@ docker compose run --rm engine-paper \
 
 The dashboard Backtest Viewer shows the verdict. The engine-side `livegate`
 requires OOS Sharpe ≥ 0.8, deflated Sharpe ≥ 0.95, P(SR<0) ≤ 0.10. If the run
-does not clear the bar, **fix or cut strategies — do not go live.**
+does not clear the bar, **fix or cut strategies: do not go live.**
 
 ## 4. Tiny real-money go-live (gated, supervised)
 

@@ -1,4 +1,4 @@
-"""Pillar 4 / sec.8a follow-through — DOWN-SHOCK short sleeve, FULL 5-criterion gate.
+"""Pillar 4 / sec.8a follow-through: DOWN-SHOCK short sleeve, FULL 5-criterion gate.
 
 The screen found a significant down-shock underreaction (continued downward drift
 after a 4sigma+volume down day). Here we test whether it is a DEPLOYABLE edge or

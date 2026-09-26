@@ -1,4 +1,4 @@
-"""Parameter-sensitivity sweep — perturb one tunable at a time around the
+"""Parameter-sensitivity sweep: perturb one tunable at a time around the
 baseline, re-run, and report how OOS Sharpe/CAGR/maxDD move. A strategy whose
 edge survives only at one knob setting is overfit; this exposes that and feeds
 ``n_trials`` into the deflated-Sharpe deflation (every variant tried counts).

@@ -2,7 +2,7 @@
 
 Written in-repo (~150 lines) rather than importing hmmlearn so the regime
 layer has zero exotic dependencies, deterministic seeding, and explicit
-degeneracy reporting. Sized for T ~ 1000 observations, K <= 4 states — EM
+degeneracy reporting. Sized for T ~ 1000 observations, K <= 4 states: EM
 runs in milliseconds.
 """
 

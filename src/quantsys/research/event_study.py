@@ -1,10 +1,10 @@
-"""Event-study core (market model) — the Pillar 4 foundation.
+"""Event-study core (market model): the Pillar 4 foundation.
 
 DATA-AGNOSTIC by design: callers supply, per event, a security return series and
 an aligned market return series with the event day flagged. The SAME engine then
 serves every event sleeve (PEAD, index rebalancing, merger arb, corporate
 actions, insider/bulk-deal flow) once that sleeve's ANNOUNCEMENT-dated event data
-is wired. Nothing here assumes a particular event type — it only needs returns
+is wired. Nothing here assumes a particular event type: it only needs returns
 and an event index, so it is unit-testable without any external data.
 
 Model (per security i, OLS on the estimation window):
@@ -15,7 +15,7 @@ Abnormal / cumulative abnormal return over the event window [t1, t2]:
     CAAR  = (1/N) * sum_i CAR_i
 
 Significance (two complementary tests, because Indian single-stock ARs are
-fat-tailed and events inflate variance — a naive cross-sectional t over-rejects):
+fat-tailed and events inflate variance: a naive cross-sectional t over-rejects):
   - BMP (Boehmer, Musumeci & Poulsen 1991): standardize each CAR by its own
     Patell forecast-error-adjusted std, then take the CROSS-SECTIONAL t of those
     standardized CARs. Robust to event-induced variance inflation.
@@ -53,7 +53,7 @@ class EventWindows:
     """Relative-day windows around the event (day 0 = event/announcement day).
 
     Trading-day offsets, inclusive. The estimation window MUST end strictly
-    before the event window starts — otherwise the model is fit on the very
+    before the event window starts: otherwise the model is fit on the very
     return it is meant to judge (look-ahead). Typical: est=(-250,-30),
     event=(-1,+1) for the announcement reaction or (+2,+60) for drift.
     """
@@ -77,7 +77,7 @@ class Event:
 
     ``r_i``/``r_m`` are aligned daily returns over a window long enough to cover
     both the estimation and event windows; ``day0`` is the index of the event
-    day within them. Callers slice nothing — the engine does, by the windows.
+    day within them. Callers slice nothing: the engine does, by the windows.
     """
 
     symbol: str

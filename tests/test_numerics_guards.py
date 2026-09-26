@@ -1,7 +1,7 @@
 """Regression tests for silent-failure traps in the numeric layer.
 
 Each test here corresponds to a defect where a bad input produced a *plausible
-looking* answer instead of an error — the failure mode that costs money,
+looking* answer instead of an error: the failure mode that costs money,
 because nothing alarms. Two families:
 
 1. The `float(x) or default` NaN trap. NaN is truthy in Python, so the idiom

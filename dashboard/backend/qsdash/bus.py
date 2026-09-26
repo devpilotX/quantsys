@@ -2,8 +2,8 @@
 
 Two backends behind one interface:
 
-- ``RedisBus``  — production (VPS docker-compose ships Redis).
-- ``PgBus``     — zero-extra-dependency fallback using Postgres LISTEN/NOTIFY;
+- ``RedisBus``: production (VPS docker-compose ships Redis).
+- ``PgBus``: zero-extra-dependency fallback using Postgres LISTEN/NOTIFY;
                   the default on the Windows dev box where Redis is absent.
 
 Both carry the same envelope on one channel::
@@ -143,7 +143,7 @@ class RedisAsyncSubscriber(AsyncSubscriber):
 class PgAsyncSubscriber(AsyncSubscriber):
     """LISTEN on a dedicated thread with a SYNC connection, bridged into the
     event loop via call_soon_threadsafe. psycopg's async I/O needs a selector
-    loop, which uvicorn on Windows doesn't provide (Proactor) — the thread
+    loop, which uvicorn on Windows doesn't provide (Proactor): the thread
     approach works on every platform and event loop."""
 
     def __init__(self, dsn: str):

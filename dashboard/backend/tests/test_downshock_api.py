@@ -1,4 +1,4 @@
-"""GET /api/downshock — the read-only forward-tracker monitor endpoint."""
+"""GET /api/downshock: the read-only forward-tracker monitor endpoint."""
 from __future__ import annotations
 
 import json

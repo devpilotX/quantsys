@@ -1,4 +1,4 @@
-"""Database schema — every number the dashboard shows lives in one of these
+"""Database schema: every number the dashboard shows lives in one of these
 tables, written by the engine (trading truth) or the API (auth/control).
 
 Conventions
@@ -6,7 +6,7 @@ Conventions
 - ``mode`` columns separate PAPER and LIVE universes everywhere; they are
   never aggregated together.
 - JSON columns are JSONB on Postgres, plain JSON elsewhere (tests on SQLite).
-- ``decisions.audit`` holds the engine's full AuditEvent trail verbatim —
+- ``decisions.audit`` holds the engine's full AuditEvent trail verbatim:
   the explainability views render it, they never re-derive it.
 """
 
@@ -340,7 +340,7 @@ class Alert(Base):
 
 
 class WebhookEvent(Base):
-    """Inbound webhook ledger — the idempotency guard."""
+    """Inbound webhook ledger: the idempotency guard."""
 
     __tablename__ = "webhook_events"
 

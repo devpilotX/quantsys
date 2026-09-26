@@ -1,9 +1,9 @@
-"""CommandConsumer — the engine-side half of the control plane.
+"""CommandConsumer: the engine-side half of the control plane.
 
 Runs inside the engine process between decision bars. Commands transition
 pending -> acked -> done|rejected and every outcome lands back in the row's
 ``result`` so the UI can show exactly what happened. The engine is the ONLY
-thing that flips runtime_config['mode'] — the badge shows engine truth.
+thing that flips runtime_config['mode']: the badge shows engine truth.
 """
 
 from __future__ import annotations
@@ -226,7 +226,7 @@ class CommandConsumer:
         if kind in ("engine_pause", "engine_resume"):
             # Pause HALTS the decision loop without flattening (distinct from
             # kill, which flattens). Persisted so a pause survives an engine
-            # restart — you must explicitly resume. Bars keep recording; the
+            # restart: you must explicitly resume. Bars keep recording; the
             # engine just stops deciding/executing.
             paused = kind == "engine_pause"
             r.paused = paused

@@ -46,7 +46,7 @@ Login at https://quant.devpilotx.com. Default mode is PAPER.
 | reset operator password | `docker compose run --rm api python -m qsdash.cli reset-password --username <you>` |
 
 Off-VPS backup copy: add a cron on another machine:
-`rsync -az vps:/path/Quant/deploy/backups/ ./quantsys-backups/` — do not skip
+`rsync -az vps:/path/Quant/deploy/backups/ ./quantsys-backups/`; do not skip
 this; a VPS disk is not a backup.
 
 ## 3. Security checklist before going live (real money)
@@ -56,7 +56,7 @@ this; a VPS disk is not a backup.
 - [ ] Read-only console role created and `CONSOLE_DATABASE_URL` set on the api
       service (SQL in `dashboard/backend/qsdash/api/dbadmin.py`)
 - [ ] `/dbadmin` IP allowlist enabled in `nginx/quant.conf` (it ships
-      commented out — pgweb has NO auth of its own)
+      commented out: pgweb has NO auth of its own)
 - [ ] Optional `IP_ALLOWLIST` for the whole dashboard in `.env`
 - [ ] Rotate any credential that ever touched a repo or chat
 - [ ] `docker compose exec api python -c "from qsdash.config import settings; assert settings.cookie_secure"`

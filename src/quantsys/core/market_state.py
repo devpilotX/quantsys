@@ -1,6 +1,6 @@
 """MarketState: the single read-only snapshot every strategy and risk
 component consumes. Built identically by the backtester and the live data
-layer — this is what makes 'same code in backtest and live' true.
+layer: this is what makes 'same code in backtest and live' true.
 """
 
 from __future__ import annotations

@@ -1,5 +1,5 @@
 """Calendar-structural expiry effect (Phase-4 research candidate, ONE
-pre-registered hypothesis — NOT to be tuned).
+pre-registered hypothesis: NOT to be tuned).
 
 NSE monthly F&O settlement clusters in the last week of the calendar month. Into
 that window, options open interest concentrates and market-maker delta-hedging +
@@ -23,7 +23,7 @@ window_days < 7 the expiry day can fall outside the window. Exchange holidays
 are not modelled: they remove sessions from the window and can move the expiry
 day, never the window.
 
-Defined-risk: an ATR stop on every position. Declarative targets — a signal is
+Defined-risk: an ATR stop on every position. Declarative targets: a signal is
 emitted every decision bar while a position is wanted; ceasing to emit IS the
 exit instruction (identical contract to trend/meanrev).
 """

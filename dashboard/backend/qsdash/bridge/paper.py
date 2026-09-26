@@ -37,7 +37,7 @@ from quantsys.core.types import (
 from quantsys.costs import CostModel
 
 # runtime_config key holding the broker's durable cash ledger. Positions were
-# always persisted (PositionRow) but cash/realized were NOT — every restart
+# always persisted (PositionRow) but cash/realized were NOT: every restart
 # rebuilt cash from the bootstrap capital, so a carried book re-added its own
 # cost basis to equity (phantom P&L at each daily recycle).
 _CASH_STATE_KEY = "paper_broker_state"
@@ -317,7 +317,7 @@ class PaperBroker:
                                     qty, px)
             return 0.0, intent.strategy, False
 
-        # exits often carry no strategy tag — attribute to the position's
+        # exits often carry no strategy tag: attribute to the position's
         strat = (row.strategy if row is not None and row.strategy
                  else intent.strategy)
 
@@ -476,7 +476,7 @@ class PaperBroker:
 
 class _FlattenDecision:
     """Minimal Decision stand-in for operator-initiated flattens (no engine
-    pass involved — rationale says exactly that)."""
+    pass involved: rationale says exactly that)."""
 
     def __init__(self, ts):
         from quantsys.core.types import RegimeState

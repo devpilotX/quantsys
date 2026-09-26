@@ -1,7 +1,7 @@
 """Event-driven backtester.
 
 The backtester drives the SAME DecisionEngine.decide() path the live runner
-uses — no re-implemented strategy/sizing/risk logic anywhere. Fills are
+uses: no re-implemented strategy/sizing/risk logic anywhere. Fills are
 simulated by SimBroker at bar close with the engine's own CostModel, so
 backtest economics and the live cost gate share one fee schedule.
 """

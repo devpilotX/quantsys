@@ -4,7 +4,7 @@
 2. writes ``config_versions`` (versioned diff) and/or a ``commands`` row,
 3. audit-logs, 4. publishes a ``commands``/``config`` event.
 
-The API NEVER mutates engine behaviour directly — the engine consumes the
+The API NEVER mutates engine behaviour directly: the engine consumes the
 command queue and acks. Switching to LIVE additionally demands the typed
 confirmation phrase and refuses if paper positions are open (unless the
 operator explicitly chose flatten_first).
@@ -39,7 +39,7 @@ router = APIRouter(prefix="/control", tags=["control"])
 _publisher = make_sync_publisher(SessionLocal)
 
 # Operator-tunable risk keys the settings page may write. Anything outside
-# this list is rejected — adding a knob is a deliberate code change.
+# this list is rejected: adding a knob is a deliberate code change.
 ALLOWED_CONFIG_KEYS = {
     "sizing.base_risk_frac",
     "vol_target.annual_vol_target",
@@ -199,7 +199,7 @@ def set_mode(body: ModeBody, request: Request, db: Session = Depends(get_db),
         payload["deployable_cap_abs"] = body.deployable_cap_abs
 
     # NOTE: 'mode' RuntimeConfig is flipped by the ENGINE when it completes the
-    # transition (command ack), not here — the badge always shows engine truth.
+    # transition (command ack), not here: the badge always shows engine truth.
     _set_rc(db, "mode_requested", body.target_mode, username, body.reason)
     cmd = _enqueue(db, username, "set_mode", payload)
     audit(db, username, "control.mode.requested", payload, client_ip(request))

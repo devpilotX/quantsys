@@ -19,7 +19,7 @@ IST = timezone(timedelta(hours=5, minutes=30))
 
 
 def now_ist() -> datetime:
-    """Naive IST wall-clock — the one timestamp convention in the DB."""
+    """Naive IST wall-clock: the one timestamp convention in the DB."""
     return datetime.now(IST).replace(tzinfo=None)
 
 

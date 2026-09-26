@@ -99,7 +99,7 @@ def implied_vol(price: float, S: float, K: float, T: float, r: float,
                 is_call: bool, q: float = 0.0,
                 lo: float = 1e-4, hi: float = 5.0, tol: float = 1e-6) -> float | None:
     """Bracketed bisection. Returns None if the price is outside the no-arb
-    band (below intrinsic or above the forward bound) — never guesses."""
+    band (below intrinsic or above the forward bound): never guesses."""
     if T <= 0 or price <= 0:
         return None
     intrinsic = max(0.0, (S - K) if is_call else (K - S)) * math.exp(-r * T)

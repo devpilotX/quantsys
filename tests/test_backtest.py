@@ -60,7 +60,7 @@ def test_warmup_keeps_book_flat(cfg, bars):
 
 def test_no_lookahead_decision_uses_only_past_bars(cfg, bars):
     """A decision at bar i must be identical whether or not bars after i exist
-    in the stream — i.e. decide() never peeks ahead."""
+    in the stream: i.e. decide() never peeks ahead."""
     prefix = bars[:300]
     full = bars[:600]
     r_prefix = run_backtest(cfg, iter(prefix), 50_000_000, warmup_bars=50)
@@ -100,7 +100,7 @@ def test_walk_forward_runs_and_separates_is_oos(cfg, bars):
 def test_walk_forward_feeds_each_bar_once_no_history_duplication(cfg, bars):
     """Regression: walk_forward streams each bar into the continuous engine
     EXACTLY ONCE. The old code re-fed overlapping train windows into the
-    carried BarHistory, bloating it ~2.5x with duplicate bars — which corrupted
+    carried BarHistory, bloating it ~2.5x with duplicate bars: which corrupted
     the regime/edge estimators and made per-bar recompute blow up super-linearly
     (walk_forward effectively hung on realistic inputs). Guard the invariant by
     capturing the continuous engine and asserting its carried history is not

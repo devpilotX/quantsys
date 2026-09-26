@@ -1,4 +1,4 @@
-"""LiveRunner — the 24x7 live/paper-on-live-data orchestrator.
+"""LiveRunner: the 24x7 live/paper-on-live-data orchestrator.
 
 Wires: AngelOneBroker (data + execution) -> BarAggregator -> DecisionEngine ->
 LiveExecutionBroker (OMS) -> Recorder, with reconciliation every cycle and
@@ -6,7 +6,7 @@ market-hours gating. Shares the Recorder, engine, and CommandConsumer with the
 paper runner; the difference is the venue and that real ticks drive the clock.
 
 Modes:
-- mode='paper'  : real live data feed, but LiveExecutionBroker is NOT used —
+- mode='paper'  : real live data feed, but LiveExecutionBroker is NOT used:
                   a PaperBroker fills locally. This is "paper-on-VPS", the
                   first test of the feed/postback/reconcile plumbing.
 - mode='live'   : real orders, gated by livegate (adapter + QS_LIVE_ARMED +
@@ -16,7 +16,7 @@ Run:  QS_LIVE_ARMED=0 python -m qsdash.bridge.live --paper      # paper on live 
       QS_LIVE_ARMED=1 python -m qsdash.bridge.live --live       # real money (gated)
 
 Real-money trading requires rotated credentials, the VPS whitelisted IP, and a
-passed real-data backtest — see docs/GOLIVE.md. This module is complete and
+passed real-data backtest: see docs/GOLIVE.md. This module is complete and
 tested with a mock transport; it has NOT been run against the live broker.
 """
 
@@ -255,7 +255,7 @@ class LiveRunner:
         # Durable paper capital: applied ONLY when the operator value CHANGED
         # (tracked via the paper_capital_applied marker). Re-applying it on
         # every restart silently reset cash to the full float on top of a
-        # carried book — a phantom equity jump equal to the open positions'
+        # carried book: a phantom equity jump equal to the open positions'
         # cost basis at every 08:50 recycle, compounding into the study's
         # equity series. Unchanged value => the broker's persisted cash /
         # realized (see PaperBroker.load_open_state) carries the true series.
@@ -359,7 +359,7 @@ class LiveRunner:
 
         if self.paused:
             # operator pause: bars recorded (strategies stay warm), decision loop
-            # halted — no reconcile/decide/execute, NO flatten (distinct from kill).
+            # halted: no reconcile/decide/execute, NO flatten (distinct from kill).
             self.recorder.heartbeat(
                 status="paused", market_open=is_session_open(ts),
                 detail={"data_source": "angelone", "venue": self.mode,
@@ -786,7 +786,7 @@ class LiveRunner:
                  len(all_ts), n, len(per_sym))
 
     def _seed_daily_panels(self) -> None:
-        """Give every panel sleeve (factor / reversal / downshock — anything
+        """Give every panel sleeve (factor / reversal / downshock: anything
         exposing ``seed_daily``) its daily history: none of them can derive
         months of daily closes from live intraday bars, so 'enabled' without
         this would silently mean 'no-op for a year'. One broker fetch per
@@ -834,7 +834,7 @@ class LiveRunner:
                  n, [s.name for s in sleeves])
         # Depth telemetry: a cross-sectional sleeve that silently receives too
         # few rows (fewer calendar days fetched than its lookback needs) stays
-        # breadth-gated and never trades — surface it instead of hiding it.
+        # breadth-gated and never trades: surface it instead of hiding it.
         for s in sleeves:
             panel = getattr(s, "_panel", None)
             if panel:
@@ -883,7 +883,7 @@ class LiveRunner:
             log.warning("initial equity snapshot failed: %s", e)
 
     def _absorb_bars(self, batch: dict[str, Bar]) -> None:
-        """Record bars into history WITHOUT deciding — for stragglers that
+        """Record bars into history WITHOUT deciding: for stragglers that
         arrive after their bucket was already decided (or out-of-session
         buckets, e.g. the pre-open aggregation of a stale overnight bar)."""
         for sym, bar in batch.items():
@@ -894,7 +894,7 @@ class LiveRunner:
 
     def _poll_once(self, now: datetime, decide_grace_s: float = 3.0) -> bool:
         """One poll-loop iteration: complete elapsed bars, accumulate, and run
-        at most ONE decision — for the bucket, at the bucket timestamp, on the
+        at most ONE decision: for the bucket, at the bucket timestamp, on the
         full cross-section. Returns True when a decision step ran.
 
         Bars used to complete per-symbol on the next tick and the old loop
@@ -924,7 +924,7 @@ class LiveRunner:
         if already or not is_session_open(bucket):
             self._absorb_bars(batch)
             return False
-        # ONE decision per bucket, stamped at the bar ts — the backtest
+        # ONE decision per bucket, stamped at the bar ts: the backtest
         # convention, so live and backtest share the same clock.
         self._last_step_bucket = bucket
         self.step(bucket, batch)
@@ -937,7 +937,7 @@ class LiveRunner:
         self._started_monotonic = time.monotonic()
         try:
             self._warmup_from_history()
-        except Exception as e:  # best-effort — a cold start is still functional
+        except Exception as e:  # best-effort: a cold start is still functional
             log.warning("warmup failed (engine starts cold): %s", e)
         try:
             self._seed_daily_panels()
@@ -956,9 +956,9 @@ class LiveRunner:
             time.sleep(poll_seconds)
 
     def _guarded_iteration(self, decide_grace_s: float) -> None:
-        """One poll-loop tick, guarded. A transient failure — most importantly a
+        """One poll-loop tick, guarded. A transient failure: most importantly a
         momentary Postgres/DNS blip on a recorder write (`failed to resolve host
-        'postgres'`, seen 2026-07-07) — must NOT propagate out of run_forever and
+        'postgres'`, seen 2026-07-07): must NOT propagate out of run_forever and
         exit the process: `unless-stopped` then restarts the container, re-running
         warmup + daily-panel seeding and throwing away warm sleeve/edge state over
         a hiccup that pool_pre_ping would have healed on the next tick. So log it

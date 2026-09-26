@@ -3,13 +3,13 @@
 The existing `backtest/metrics.py` has deflated Sharpe + Monte-Carlo bootstrap.
 The two pieces the spec asks for that were missing:
 
-  * pbo_cscv  — Probability of Backtest Overfitting via Combinatorially-Symmetric
+  * pbo_cscv: Probability of Backtest Overfitting via Combinatorially-Symmetric
                 Cross-Validation (Bailey, Borwein, Lopez de Prado & Zhu, 2015).
                 Answers: "across all symmetric IS/OOS block splits, how often does
                 the config that looked best in-sample land in the worse OOS half?"
                 PBO near 0 = robust selection; near 1 = the selection is overfit.
 
-  * purged_kfold — purged & embargoed K-fold CV (Lopez de Prado, AFML ch.7):
+  * purged_kfold: purged & embargoed K-fold CV (Lopez de Prado, AFML ch.7):
                 removes train observations whose label window overlaps the test
                 fold (purge) plus an embargo after it, so serially-correlated
                 leakage cannot flatter OOS performance.
@@ -121,7 +121,7 @@ def purged_kfold(n: int, n_splits: int = 5, embargo_pct: float = 0.01,
 
 def cv_sharpe_stability(returns: np.ndarray, n_splits: int = 5,
                         embargo_pct: float = 0.02) -> dict:
-    """Per-fold OOS Sharpe of a single return stream under purged K-fold —
+    """Per-fold OOS Sharpe of a single return stream under purged K-fold:
     a quick read on how stable an edge is across disjoint time blocks."""
     r = np.asarray(returns, dtype=float)
     sh = [_sharpe(r[test]) for _, test in purged_kfold(len(r), n_splits, embargo_pct)]

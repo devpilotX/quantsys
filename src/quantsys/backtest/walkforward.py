@@ -1,12 +1,12 @@
 """Walk-forward evaluation.
 
-This engine is online/adaptive (EWMA edge stats, regime HMM, tier ladder) — it
+This engine is online/adaptive (EWMA edge stats, regime HMM, tier ladder): it
 has no separate "fit" step to freeze. So walk-forward here measures the honest
 thing: train windows let the engine's estimators converge with NO execution
 (in-sample warm-up), then the immediately-following test window executes and is
 scored OUT-OF-SAMPLE on data the estimators had not yet seen when each decision
 was made. Engine state carries forward across the rolling windows exactly as it
-would live — there is no re-initialisation that would leak future info backward.
+would live: there is no re-initialisation that would leak future info backward.
 
 Returns per-fold OOS metrics plus the concatenated OOS curve, and a train-window
 reference the dashboard renders beside it (labelled "is" for compatibility).
@@ -105,7 +105,7 @@ def walk_forward(
         # Stream ONLY the bars not yet seen by the continuous engine. The engine
         # and broker already carry the earlier bars forward (exactly as live), so
         # re-feeding the overlapping train window would append those bars to the
-        # carried BarHistory a second time — bloating it ~2.5x with DUPLICATE
+        # carried BarHistory a second time: bloating it ~2.5x with DUPLICATE
         # bars. That both corrupts the estimators (regime HMM / EWMA cov see
         # repeated data) and makes per-bar regime/cov recompute blow up
         # super-linearly, which is what made walk_forward effectively hang.

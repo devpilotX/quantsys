@@ -1,4 +1,4 @@
-# qsdash API / ws hub / engine runner — one image, three commands.
+# qsdash API / ws hub / engine runner: one image, three commands.
 FROM python:3.12-slim
 
 WORKDIR /app

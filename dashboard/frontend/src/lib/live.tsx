@@ -82,7 +82,7 @@ export function LiveProvider({ children }: { children: React.ReactNode }) {
       ws.onopen = () => {
         retry.current = 0;
         setStatus("live");
-        // resync snapshots after any (re)connect — stream is delta-only
+        // resync snapshots after any (re)connect: stream is delta-only
         qc.invalidateQueries();
       };
       ws.onmessage = (m) => {

@@ -7,7 +7,7 @@ carry volume as well (the down-shock event filter needs it); factor keeps its
 own original implementation untouched for Study-1 state compatibility.
 
 Sleeves built on this are safe no-ops when unseeded (the backtest never seeds
-them — identical precedent to factor), so enabling them cannot corrupt an
+them: identical precedent to factor), so enabling them cannot corrupt an
 intraday replay.
 """
 
@@ -35,7 +35,7 @@ class DailyPanelStrategy(Strategy):
     # ------------------------------------------------------------- seeding
     def seed_daily(self, symbol: str, rows) -> None:
         """Load daily history: rows of (ts_or_date, open, high, low, close,
-        volume) ascending — the broker candle tuple shape."""
+        volume) ascending: the broker candle tuple shape."""
         dq: deque[tuple[str, float, float, float, float]] = deque(maxlen=self._depth)
         for r in rows:
             ts = r[0]

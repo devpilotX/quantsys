@@ -1,4 +1,4 @@
-"""LiveExecutionBroker — presents the same surface the bridge Runner calls
+"""LiveExecutionBroker: presents the same surface the bridge Runner calls
 (execute/flatten_all/positions/equity/...) but routes orders through the real
 Angel One adapter + OMS, persists fills/orders/positions to Postgres, and
 reconciles against the broker every cycle (freeze on mismatch).

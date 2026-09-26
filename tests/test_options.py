@@ -1,6 +1,6 @@
 """Options sleeve: Black-Scholes correctness, IV round-trip, defined-risk
 spread construction, and end-to-end sizing through the REAL SizingEngine
-(legs come out equal-contract / opposite-sign — the defined-risk invariant)."""
+(legs come out equal-contract / opposite-sign: the defined-risk invariant)."""
 
 from __future__ import annotations
 

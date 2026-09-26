@@ -1,4 +1,4 @@
-"""DecisionEngine — the brain. One deterministic pass per decision bar:
+"""DecisionEngine: the brain. One deterministic pass per decision bar:
 
     1. equity/kill/throttle (risk pre-pass)        risk/engine.py
     2. capital tier resolution                     portfolio/tiers.py
@@ -12,8 +12,8 @@
        lots/cost gate/cap re-check                 portfolio/, risk/rules.py
     9. order diff with anti-churn bands            engine/orders.py
 
-`decide(state)` is pure given (state, config, engine state) — no I/O, no
-wall clock, no randomness — so backtest, paper and live run THE SAME code.
+`decide(state)` is pure given (state, config, engine state): no I/O, no
+wall clock, no randomness: so backtest, paper and live run THE SAME code.
 Orchestrator contract per new bar: post_bar(state) THEN decide(state). Once
 warm-up ends: end_warmup(held quantities).
 """
@@ -85,7 +85,7 @@ class DecisionEngine:
             for s in self.strategies
         }
         # regime-conditional edge buckets (per strategy x regime label),
-        # soft-assigned by regime probability — feeds the Kelly regime tilt
+        # soft-assigned by regime probability: feeds the Kelly regime tilt
         self.regime_stats: dict[str, dict[str, OnlineEdgeStats]] = {
             s.name: {} for s in self.strategies
         }
@@ -140,7 +140,7 @@ class DecisionEngine:
 
         regime = self.detector.update(state)
         # attribution memory for post_bar: the unit book decided THIS bar earns
-        # its next-bar P&L under THIS regime (causal — no look-ahead)
+        # its next-bar P&L under THIS regime (causal: no look-ahead)
         self._last_regime_probs = dict(regime.probs)
         universe = self._universe(state, tier)
         view = state.restricted(universe | {cfg.engine.index_symbol})
@@ -265,7 +265,7 @@ class DecisionEngine:
                     continue
                 pnl += q * (px_now - px_prev) * inst.point_value
             # proportional cost on unit turnover (flat fees are scale-dependent
-            # and excluded by design — documented in costs.py)
+            # and excluded by design: documented in costs.py)
             old = self._unit_nets_old.get(strat_name, {})
             for sym in set(nets) | set(old):
                 dq = abs(nets.get(sym, 0.0) - old.get(sym, 0.0))
