@@ -69,9 +69,12 @@ def fetch_symbol(broker: AngelOneBroker, symbol: str, interval: str,
 
 
 def _ensure_tokens(broker: AngelOneBroker, cfg) -> None:
-    """The instrument master is the source of truth, but a few configured
-    symbols (index futures) aren't in it — fall back to their config token so
-    they can still be fetched."""
+    """Resolve every configured symbol on its configured exchange, so an NSE
+    equity is fetched from its NSE listing and not the master's bare-name BSE
+    row. A symbol the master does not list there falls back to its config
+    token, if it has one."""
+    for u in cfg.universe:
+        broker.resolve(u.symbol, u.exchange, u.kind)
     have = broker._instruments
     for u in cfg.universe:
         if (u.symbol not in have or not have[u.symbol].token) and u.token:

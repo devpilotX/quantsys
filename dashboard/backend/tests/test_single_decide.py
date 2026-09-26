@@ -81,7 +81,7 @@ def paper_runner(db):
     r.mode = "paper"
     r.publisher = make_sync_publisher(SessionLocal)
     r.broker_adapter = adapter
-    r.instruments = r._merge_instruments(adapter.instruments())
+    r.instruments = r._merge_instruments()
     r.engine = DecisionEngine(r.cfg, instruments=r.instruments)
     r._all_strategies = list(r.engine.strategies)
     r._disabled = set()

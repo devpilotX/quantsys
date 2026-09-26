@@ -701,3 +701,59 @@ def test_reconcile_books_compares_maps_and_skips_working_symbols():
     assert not r.ok
     assert sorted(r.mismatches) == ["INFY: internal=5 broker=4",
                                     "TCS: internal=0 broker=1"]
+
+
+
+# ------------------------------------------ exchange of a configured equity
+def _dual_listed_master() -> list[dict]:
+    """Cash equities as the master lists them: the NSE row carries the series
+    suffix and the bare-name row is the BSE listing. HDFCBANK is on BSE only."""
+    return [
+        {"symbol": "SBIN", "name": "SBIN", "token": "500112", "exch_seg": "BSE",
+         "instrumenttype": "", "lotsize": "1", "tick_size": "5"},
+        {"symbol": "SBIN-EQ", "name": "SBIN", "token": "3045", "exch_seg": "NSE",
+         "instrumenttype": "", "lotsize": "1", "tick_size": "5"},
+        {"symbol": "HDFCBANK", "name": "HDFCBANK", "token": "500180", "exch_seg": "BSE",
+         "instrumenttype": "", "lotsize": "1", "tick_size": "5"},
+    ]
+
+
+def _dual_listed_adapter(t: BookTransport) -> AngelOneBroker:
+    b = AngelOneBroker(api_key="k", client_code="c", mpin="1234",
+                       totp_secret="JBSWY3DPEHPK3PXP", transport=t,
+                       instrument_master=_dual_listed_master())
+    b.connect()
+    return b
+
+
+def test_configured_nse_equity_trades_on_its_nse_listing():
+    """Matched by bare name, SBIN was the BSE row, so its candles, its feed
+    and its orders all went to BSE while the config says NSE."""
+    t = BookTransport()
+    b = _dual_listed_adapter(t)
+    assert b.instruments()["SBIN"].exchange == "BSE"      # before resolving
+    inst = b.resolve("SBIN", "NSE", InstrumentKind.EQUITY)
+    assert inst is not None
+    assert (inst.symbol, inst.exchange, inst.token, inst.broker_symbol) == (
+        "SBIN", "NSE", "3045", "SBIN-EQ")
+    b.place(BrokerOrder("E1", "SBIN", "BUY", 5, ExecutionStyle.MARKET_SINGLE,
+                        Urgency.NORMAL))
+    sent = t.placed[-1]
+    assert (sent["tradingsymbol"], sent["exchange"], sent["symboltoken"]) == (
+        "SBIN-EQ", "NSE", "3045")
+    t.position_resp = {"status": True, "data": [
+        {"tradingsymbol": "SBIN-EQ", "symboltoken": "3045", "exchange": "NSE",
+         "netqty": "5", "netprice": "550"}]}
+    assert {p.symbol: p.qty for p in b.positions()} == {"SBIN": 5}
+    b.refresh_instruments()                                # a master reload keeps it
+    assert b.instruments()["SBIN"].exchange == "NSE"
+
+
+def test_equity_listed_only_on_another_exchange_is_not_resolved(caplog):
+    b = _dual_listed_adapter(BookTransport())
+    with caplog.at_level(logging.WARNING, logger="quantsys.angelone"):
+        assert b.resolve("HDFCBANK", "NSE", InstrumentKind.EQUITY) is None
+    assert "HDFCBANK" not in b.instruments()
+    assert "listed on BSE" in caplog.text
+    with pytest.raises(BrokerError, match="no instrument token"):
+        b.historical_candles("HDFCBANK", "ONE_DAY", datetime(2026, 1, 1), datetime(2026, 1, 5))

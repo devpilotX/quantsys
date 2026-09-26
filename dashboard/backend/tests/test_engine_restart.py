@@ -63,7 +63,7 @@ def _runner():
     r.mode = "paper"
     r.publisher = make_sync_publisher(SessionLocal)
     r.broker_adapter = adapter
-    r.instruments = r._merge_instruments(adapter.instruments())
+    r.instruments = r._merge_instruments()
     r.engine = DecisionEngine(r.cfg, instruments=r.instruments)
     r._all_strategies = list(r.engine.strategies)
     r._disabled = set()
@@ -397,11 +397,14 @@ def test_paper_fill_needs_a_bar_in_the_decided_bucket(monkeypatch, db):
     monkeypatch.setattr(r.engine, "decide",
                         lambda state: dataclasses.replace(_no_orders(state), orders=tuple(order)))
     batch = {"HDFCBANK": Bar(ts, 1500.0, 1500.0, 1500.0, 1500.0, 1e5)}   # ICICIBANK silent
-    before = db.query(FillRow).filter(FillRow.mode == "paper").count()
     r.step(ts, batch)
     assert set(r.broker.positions) == {"HDFCBANK"}
-    db.query(FillRow).filter(FillRow.mode == "paper").delete()
+    # only this bar's rows: other tests leave paper fills of their own
     from qsdash.models import PositionRow
-    db.query(PositionRow).filter(PositionRow.mode == "paper").delete()
+
+    fills = db.query(FillRow).filter(FillRow.mode == "paper", FillRow.ts == ts)
+    assert [f.symbol for f in fills] == ["HDFCBANK"]
+    fills.delete()
+    db.query(PositionRow).filter(PositionRow.mode == "paper",
+                                 PositionRow.opened_at == ts).delete()
     db.commit()
-    assert before == 0

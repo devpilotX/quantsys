@@ -92,7 +92,7 @@ def live_runner(db, monkeypatch):
     r.publisher = make_sync_publisher(SessionLocal)
     r.broker_adapter = adapter
     adapter.connect()
-    r.instruments = r._merge_instruments(adapter.instruments())
+    r.instruments = r._merge_instruments()
     from quantsys.engine.decision import DecisionEngine
     r.engine = DecisionEngine(r.cfg, instruments=r.instruments)
     r._all_strategies = list(r.engine.strategies)
@@ -164,7 +164,7 @@ def test_durable_paper_capital_applied_on_startup(db):
     r.mode = "paper"
     r.publisher = make_sync_publisher(SessionLocal)
     r.broker_adapter = adapter
-    r.instruments = r._merge_instruments(adapter.instruments())
+    r.instruments = r._merge_instruments()
     r.engine = DecisionEngine(r.cfg, instruments=r.instruments)
     r._all_strategies = list(r.engine.strategies)
     r._disabled = set()
@@ -452,7 +452,7 @@ def live_step(db):
     r.mode = "live"
     r.publisher = make_sync_publisher(SessionLocal)
     r.broker_adapter = adapter
-    r.instruments = r._merge_instruments(adapter.instruments())
+    r.instruments = r._merge_instruments()
     r.engine = DecisionEngine(r.cfg, instruments=r.instruments)
     r._all_strategies = list(r.engine.strategies)
     r._disabled = set()
@@ -548,3 +548,63 @@ def test_step_skips_symbols_with_working_orders(live_step, db):
     t.rows = [_held("SBIN", "3045", 4, 550.0)]
     r.step(_BAR_TS, _batch())
     assert r.engine.risk.halted_reason is None
+
+
+
+# ------------------------------------------------- universe on its exchange
+def test_merge_puts_configured_equities_on_their_nse_listing(caplog):
+    """The master's bare-name equity rows are the BSE listings. Matched by
+    name, the paper engine streamed and fetched BSE data for NSE symbols."""
+    import logging
+
+    from qsdash.bridge.live import LiveRunner
+
+    from quantsys.config import load_config
+    from quantsys.execution.angelone import AngelOneBroker
+
+    master = [
+        {"symbol": "SBIN", "name": "SBIN", "token": "500112", "exch_seg": "BSE",
+         "lotsize": "1", "tick_size": "5"},
+        {"symbol": "SBIN-EQ", "name": "SBIN", "token": "3045", "exch_seg": "NSE",
+         "lotsize": "1", "tick_size": "5"},
+        # listed on BSE only in this master
+        {"symbol": "RELIANCE", "name": "RELIANCE", "token": "500325", "exch_seg": "BSE",
+         "lotsize": "1", "tick_size": "5"},
+    ]
+    adapter = AngelOneBroker(api_key="k", client_code="c", mpin="1",
+                             totp_secret="JBSWY3DPEHPK3PXP", transport=_MockTransport(),
+                             instrument_master=master)
+    adapter.connect()
+    r = LiveRunner.__new__(LiveRunner)
+    r.cfg = load_config(CFG)
+    r.broker_adapter = adapter
+    with caplog.at_level(logging.WARNING):
+        insts = r._merge_instruments()
+    sbin = insts["SBIN"]
+    assert (sbin.exchange, sbin.token, sbin.broker_symbol) == ("NSE", "3045", "SBIN-EQ")
+    # never streamed or traded on BSE under an NSE config entry
+    assert (insts["RELIANCE"].exchange, insts["RELIANCE"].token) == ("NSE", "")
+    assert "RELIANCE is listed on BSE" in caplog.text
+
+
+
+def test_preflight_fails_a_database_behind_the_migrations():
+    """init-db is a manual step on update. A database left behind it passed
+    preflight and then failed at the first query that needed the new table."""
+    from qsdash.db import engine
+
+    pf = _preflight()
+    pf.check_db()                       # the suite's schema carries no revision
+    assert [(lvl, name) for lvl, name, _ in pf._results] == [("FAIL", "DB migrations")]
+    head = pf._migrations_head()
+    assert head == "d2e3f4a50002"
+    with engine.begin() as c:
+        c.exec_driver_sql("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)")
+        c.exec_driver_sql(f"INSERT INTO alembic_version VALUES ('{head}')")
+    try:
+        pf = _preflight()
+        pf.check_db()
+        assert [(lvl, name) for lvl, name, _ in pf._results] == [("OK", "DB + operator")]
+    finally:
+        with engine.begin() as c:
+            c.exec_driver_sql("DROP TABLE alembic_version")

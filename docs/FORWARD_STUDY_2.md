@@ -147,6 +147,13 @@ ones that change what the paper engine does:
    book at historical prices, so a replayed peak became the drawdown
    reference and a replayed slide could latch the kill before the first live
    bar.
+9. **Equities came from the BSE listing.** In Angel One's instrument master
+   the bare-name equity rows (SBIN) are the BSE listings; NSE lists the same
+   names by series (SBIN-EQ). The runner matched configured symbols by bare
+   name, so the paper engine's equity bars and warm-up history were BSE data
+   while the configuration says NSE, and live orders would have gone to BSE.
+   The backtest history was fetched the same way, as
+   `docs/NIFTY_BANKNIFTY_BACKTEST_REPORT.md` notes.
 
 What the recorded series measures: the implementation as deployed. For the
 down-shock and factor sleeves and for the risk stack, that is not the rule

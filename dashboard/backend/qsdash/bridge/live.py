@@ -118,7 +118,7 @@ class LiveRunner:
         # instrument master is the live source of truth for lot/tick/token;
         # config values are only warm-start fallbacks (merge: master wins,
         # fall back to config for fields the master lacks like point_value/adv)
-        self.instruments = self._merge_instruments(self.broker_adapter.instruments())
+        self.instruments = self._merge_instruments()
         self.engine = DecisionEngine(self.cfg, instruments=self.instruments)
         self._all_strategies = list(self.engine.strategies)
         self._disabled: set[str] = set()
@@ -197,21 +197,25 @@ class LiveRunner:
                         "cannot be carried overnight); groups with one are dropped whole")
         self.cfg.sizing.allow_equity_shorts = False
 
-    def _merge_instruments(self, master: dict) -> dict:
+    def _merge_instruments(self) -> dict:
+        """The universe as the engine trades it: each configured symbol on
+        its configured exchange (AngelOneBroker.resolve), with lot size, tick
+        and token from the master and the rest from the config."""
         from quantsys.core.types import Instrument
         out = {}
         cfg_by_sym = {u.symbol: u for u in self.cfg.universe}
         for sym, u in cfg_by_sym.items():
-            m = master.get(sym)
+            m = self.broker_adapter.resolve(sym, u.exchange, u.kind)
             if m is not None:
                 out[sym] = Instrument(
                     symbol=sym, token=m.token or u.token, exchange=m.exchange,
                     kind=m.kind, lot_size=m.lot_size, tick_size=m.tick_size,
                     point_value=u.point_value, sector=u.sector, adv=u.adv,
-                    margin_rate=u.margin_rate,
+                    margin_rate=u.margin_rate, broker_symbol=m.broker_symbol,
                 )
             else:
-                log.warning("instrument %s not in master — using config fallback", sym)
+                log.warning("instrument %s not in master on %s; using config fallback",
+                            sym, u.exchange)
                 out[sym] = Instrument(
                     symbol=u.symbol, token=u.token, exchange=u.exchange, kind=u.kind,
                     lot_size=u.lot_size, tick_size=u.tick_size, point_value=u.point_value,

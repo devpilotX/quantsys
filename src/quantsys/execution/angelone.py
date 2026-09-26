@@ -130,6 +130,8 @@ class AngelOneBroker:
         # response; the next place() of such an id looks it up before sending.
         self._unresolved: set[str] = set()
         self._unknown_statuses: set[str] = set()
+        # configured symbol -> (exchange, kind), re-resolved after each master load
+        self._bound: dict[str, tuple[str, InstrumentKind]] = {}
 
     # ----------------------------------------------------------- connect
     def _build_transport(self):
@@ -293,7 +295,9 @@ class AngelOneBroker:
             self._token_to_symbol[front_inst.token] = alias
             self._symbol_by_exch_token[(front_inst.exchange, front_inst.token)] = alias
         self._instruments = out
-        return out
+        for sym, (exchange, kind) in list(self._bound.items()):
+            self.resolve(sym, exchange, kind)
+        return dict(self._instruments)
 
     def _load_master(self) -> list[dict]:
         if self._instr_master is not None:
@@ -312,6 +316,35 @@ class AngelOneBroker:
 
     def instruments(self) -> dict[str, Instrument]:
         return dict(self._instruments)
+
+    def resolve(self, symbol: str, exchange: str, kind: InstrumentKind) -> Instrument | None:
+        """The master instrument a configured symbol trades as on its
+        configured exchange, or None when the master does not list it there.
+
+        NSE lists cash equities by series, so SBIN is the row SBIN-EQ; the
+        master's bare SBIN row is the BSE listing. Matched by bare name, a
+        configured NSE equity fetched candles, streamed and would have sent
+        orders on BSE. After this call the configured symbol is the engine
+        symbol for orders, candles and broker reads, and a row from another
+        exchange is never used under it.
+        """
+        self._bound[symbol] = (exchange, kind)
+        names = [f"{symbol}-EQ", symbol] if kind == InstrumentKind.EQUITY else [symbol]
+        inst = next((i for i in (self._instruments.get(n) for n in names)
+                     if i is not None and i.exchange == exchange), None)
+        if inst is None:
+            other = self._instruments.get(symbol)
+            if other is not None and other.exchange != exchange:
+                del self._instruments[symbol]
+                log.warning("%s is listed on %s, not %s, in the instrument master: "
+                            "not resolved", symbol, other.exchange, exchange)
+            return None
+        if inst.symbol != symbol:
+            inst = replace(inst, symbol=symbol, broker_symbol=inst.broker_symbol or inst.symbol)
+            self._instruments[symbol] = inst
+            self._token_to_symbol[inst.token] = symbol
+            self._symbol_by_exch_token[(inst.exchange, inst.token)] = symbol
+        return inst
 
     # ----------------------------------------------------- historical data
     def historical_candles(self, symbol: str, interval: str,
