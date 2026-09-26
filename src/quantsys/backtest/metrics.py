@@ -4,9 +4,9 @@ All formulas standard; the anti-self-deception pieces:
 - deflated_sharpe (Bailey & Lopez de Prado 2014): probability the observed
   Sharpe exceeds the expected maximum Sharpe of `n_trials` zero-skill trials,
   accounting for non-normal returns. The sensitivity sweep feeds n_trials.
-- monte_carlo_resample: stationary block bootstrap of daily returns ->
-  distributions of Sharpe and max drawdown, so a single lucky path cannot
-  pass the gate.
+- monte_carlo_resample: circular block bootstrap (fixed block length) of
+  daily returns -> distributions of Sharpe and max drawdown, so a single
+  lucky path cannot pass the gate.
 """
 
 from __future__ import annotations
@@ -20,6 +20,10 @@ import numpy as np
 
 TRADING_DAYS = 252
 _PHI = NormalDist()
+# A standard deviation this small relative to the returns' own scale is
+# rounding residue (a constant return compounded and re-differenced), not
+# risk. Dividing by it gave Sharpe ratios of order 1e14.
+_SD_REL_TOL = 1e-9
 
 
 # ----------------------------------------------------------------- helpers
@@ -30,11 +34,20 @@ def _drawdown_stats(equity: np.ndarray) -> tuple[float, float]:
     return float(dd.max(initial=0.0)), float((dd > 1e-12).mean()) if len(dd) else 0.0
 
 
+def _sd_or_none(returns: np.ndarray) -> float | None:
+    """Sample standard deviation, or None when it is zero to within rounding
+    or not finite: either way no Sharpe or moment is defined."""
+    sd = float(returns.std(ddof=1))
+    if not sd > _SD_REL_TOL * float(np.abs(returns).mean()):
+        return None
+    return sd
+
+
 def _ann_sharpe(returns: np.ndarray) -> float | None:
     if len(returns) < 2:
         return None
-    sd = returns.std(ddof=1)
-    if sd <= 0:
+    sd = _sd_or_none(returns)
+    if sd is None:
         return None
     return float(returns.mean() / sd * math.sqrt(TRADING_DAYS))
 
@@ -46,15 +59,33 @@ def compute_metrics(daily_equity: Sequence[tuple[datetime, float]],
                     traded_notional: float,
                     starting_equity: float,
                     gross_samples: list[float] | None = None,
-                    equity_samples: list[float] | None = None) -> dict:
-    eq = np.array([v for _, v in daily_equity], dtype=float)
-    out: dict = {"n_days": len(eq)}
+                    equity_samples: list[float] | None = None,
+                    *,
+                    start: datetime | None = None) -> dict:
+    """Metrics of a daily equity curve.
+
+    start: timestamp at which the curve stood at starting_equity. When given,
+    (start, starting_equity) is prepended as the base of the first return, so
+    day one's P&L and first-bar entry costs are scored. Pass it for a
+    backtest's own curve, whose first point is the END of its first day. Omit
+    it when daily_equity already begins with its base (a slice of a longer
+    curve), where prepending would add a spurious zero return.
+
+    n_returns is the sample size for any statistic of the returns; n_days is
+    the number of points passed in.
+    """
+    points = [v for _, v in daily_equity]
+    if start is not None:
+        points.insert(0, starting_equity)
+    eq = np.array(points, dtype=float)
+    out: dict = {"n_days": len(daily_equity)}
     if len(eq) < 3:
         out["insufficient_data"] = True
         return out
 
     rets = np.diff(eq) / eq[:-1]
-    years = len(eq) / TRADING_DAYS
+    out["n_returns"] = len(rets)
+    years = len(rets) / TRADING_DAYS
     max_dd, tid = _drawdown_stats(eq)
 
     out["total_return"] = float(eq[-1] / eq[0] - 1.0)
@@ -69,8 +100,8 @@ def compute_metrics(daily_equity: Sequence[tuple[datetime, float]],
     out["calmar"] = (out["cagr"] / max_dd) if out["cagr"] is not None and max_dd > 0 else None
     if len(rets) > 3:
         m = rets.mean()
-        s = rets.std(ddof=1)
-        if s > 0:
+        s = _sd_or_none(rets)
+        if s is not None:
             z = (rets - m) / s
             out["skew"] = float((z ** 3).mean())
             out["kurtosis"] = float((z ** 4).mean())  # raw (normal = 3)
@@ -120,7 +151,9 @@ def deflated_sharpe(sr_ann: float | None, n_obs: int, skew: float = 0.0,
                     kurtosis: float = 3.0, n_trials: int = 1) -> float | None:
     """P[true SR > 0 | observed SR, after multiple-testing deflation].
     Values near 1 are good; below ~0.95 the edge is not distinguishable from
-    selection bias. sr_ann is annualised; computation in per-day units."""
+    selection bias. sr_ann is annualised; computation in per-day units.
+    n_obs is the number of returns behind sr_ann (compute_metrics'
+    n_returns), not the number of equity points."""
     if sr_ann is None or n_obs < 10:
         return None
     sr = sr_ann / math.sqrt(TRADING_DAYS)          # per-day SR
@@ -132,11 +165,17 @@ def deflated_sharpe(sr_ann: float | None, n_obs: int, skew: float = 0.0,
 
 
 # ------------------------------------------------------------ Monte Carlo
-def monte_carlo_resample(daily_equity: list[tuple[object, float]],
+def monte_carlo_resample(daily_equity: Sequence[tuple[object, float]],
                          n_paths: int = 1000, block: int = 5,
                          seed: int = 11) -> dict:
-    """Moving-block bootstrap on daily returns. Returns distribution stats of
-    Sharpe and max drawdown across resampled paths."""
+    """Circular block bootstrap (fixed block length) on daily returns.
+    Returns distribution stats of Sharpe and max drawdown across resampled
+    paths.
+
+    Block starts are uniform over all n returns and blocks wrap past the end,
+    so every return is drawn equally often. Starts drawn from [0, n - block)
+    never reached the last return, so a crash on the final day could not
+    appear in any path and P(SR<0) came out as 0."""
     eq = np.array([v for _, v in daily_equity], dtype=float)
     if len(eq) < 10:
         return {"insufficient_data": True}
@@ -145,13 +184,15 @@ def monte_carlo_resample(daily_equity: list[tuple[object, float]],
     rng = np.random.default_rng(seed)
     sharpes, mdds = [], []
     n_blocks = max(1, math.ceil(n / block))
+    offsets = np.arange(block)
     for _ in range(n_paths):
-        starts = rng.integers(0, max(1, n - block), size=n_blocks)
-        path = np.concatenate([rets[s:s + block] for s in starts])[:n]
+        starts = rng.integers(0, n, size=n_blocks)
+        path = rets[((starts[:, None] + offsets) % n).ravel()[:n]]
         sr = _ann_sharpe(path)
         if sr is not None:
             sharpes.append(sr)
-        curve = np.cumprod(1 + path)
+        # the path starts from 1.0, so a loss in its first return is drawdown
+        curve = np.cumprod(np.concatenate(([1.0], 1.0 + path)))
         mdd, _ = _drawdown_stats(curve)
         mdds.append(mdd)
     sharpes_a, mdds_a = np.array(sharpes), np.array(mdds)

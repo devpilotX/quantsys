@@ -8,8 +8,14 @@ scored OUT-OF-SAMPLE on data the estimators had not yet seen when each decision
 was made. Engine state carries forward across the rolling windows exactly as it
 would live — there is no re-initialisation that would leak future info backward.
 
-Returns per-fold OOS metrics plus the concatenated OOS curve, and the
-IS-vs-OOS comparison the dashboard renders.
+Returns per-fold OOS metrics plus the concatenated OOS curve, and a train-window
+reference the dashboard renders beside it (labelled "is" for compatibility).
+That reference is NOT an in-sample fit: it is a fresh engine run causally over
+each fold's train window, so it differs from OOS in period and in warm-up (cold
+start versus the carried engine), not in whether the estimators saw the data
+they traded. Rolling train windows overlap each other and earlier test windows,
+so the two series also share calendar dates. Read the gap as that, not as
+overfitting.
 """
 
 from __future__ import annotations
@@ -24,6 +30,11 @@ from quantsys.config.schema import AppConfig
 from quantsys.core.types import Bar
 from quantsys.engine.decision import DecisionEngine
 
+# Book-level figures a stitched return series cannot have: it is pooled from
+# several shadow runs, so no single broker's fees, notional or trades sit behind it.
+_NO_BOOK_KEYS = ("n_trades", "total_fees", "traded_notional", "cost_drag_bps",
+                 "turnover_x_per_year", "fee_drag_on_capital_ann")
+
 
 @dataclass
 class Fold:
@@ -31,7 +42,7 @@ class Fold:
     train_start: datetime
     test_start: datetime
     test_end: datetime
-    is_metrics: dict
+    is_metrics: dict      # shadow run over the train window (see module docstring)
     oos_metrics: dict
 
 
@@ -42,6 +53,17 @@ class WalkForwardResult:
     oos_trades: list = field(default_factory=list)
     combined_oos: dict = field(default_factory=dict)
     pooled_is: dict = field(default_factory=dict)
+    # Equity just before the first OOS bar: the base of the first OOS return.
+    oos_start: datetime | None = None
+    oos_start_equity: float | None = None
+
+    def oos_daily_equity(self) -> list[tuple[datetime, float]]:
+        """The series combined_oos is computed from: the base point (stamped
+        with the first OOS bar), then the last OOS equity of each date."""
+        daily = _daily(self.oos_curve)
+        if self.oos_start is None or self.oos_start_equity is None or not daily:
+            return daily
+        return [(self.oos_start, self.oos_start_equity), *daily]
 
 
 def walk_forward(
@@ -69,7 +91,8 @@ def walk_forward(
     engine = DecisionEngine(cfg)
     broker = SimBroker(starting_equity, engine.instruments, engine.cost_model)
 
-    is_returns_pool: list[tuple[datetime, float]] = []
+    shadow_runs: list[list[tuple[datetime, float]]] = []
+    oos_fees = oos_notional = 0.0
     cursor = 0
     fed_hi = 0  # bars already streamed into the continuous engine/broker
     for fold_i in range(n_folds):
@@ -96,12 +119,11 @@ def walk_forward(
         )
         oos = compute_metrics(
             fold_res.daily_equity(), fold_res.trades, fold_res.total_fees,
-            fold_res.traded_notional, eq_before,
+            fold_res.traded_notional, eq_before, start=score_from,
         )
-        # in-sample proxy: score the train window's decisions on a SHADOW run
-        # (fresh broker, same converged-so-far engine snapshot is impractical;
-        # instead we report the realised train-window equity path of a shadow
-        # broker executing the train bars) — gives an honest IS reference.
+        # Train-window reference: a fresh engine and broker executing the train
+        # bars causally from a cold start. It is neither in-sample-fitted nor
+        # optimistic by construction; see the module docstring.
         is_metrics = _shadow_is(cfg, all_bars[train_lo:test_lo], eq_before)
 
         res.folds.append(Fold(
@@ -112,45 +134,74 @@ def walk_forward(
             is_metrics=is_metrics,
             oos_metrics=oos,
         ))
+        if res.oos_start is None:
+            res.oos_start, res.oos_start_equity = score_from, eq_before
         res.oos_curve.extend(fold_res.equity_curve)
         res.oos_trades.extend(fold_res.trades)
-        for ts, v in is_metrics.get("_daily", []):
-            is_returns_pool.append((ts, v))
+        # Broker deltas, not trade records: records miss the fees of lots still
+        # open at the end and carry only one side of the traded notional.
+        oos_fees += fold_res.total_fees
+        oos_notional += fold_res.traded_notional
+        if is_metrics.get("_daily"):
+            shadow_runs.append(is_metrics["_daily"])
 
         fed_hi = test_hi
         cursor += test_span
 
-    if res.oos_curve:
-        daily: dict = {}
-        for s in res.oos_curve:
-            daily[s.ts.date()] = s.equity
-        curve = [(datetime(d.year, d.month, d.day), v) for d, v in sorted(daily.items())]
-        total_fees = sum(t.fees for t in res.oos_trades)
+    if res.oos_curve and res.oos_start_equity is not None:
         res.combined_oos = compute_metrics(
-            curve, res.oos_trades, total_fees,
-            sum(abs(t.qty) * t.exit_price for t in res.oos_trades),
-            res.oos_curve[0].equity,
+            _daily(res.oos_curve), res.oos_trades, oos_fees, oos_notional,
+            res.oos_start_equity, start=res.oos_start,
         )
-    if is_returns_pool:
-        res.pooled_is = compute_metrics(is_returns_pool, [], 0.0, 0.0,
-                                        is_returns_pool[0][1])
+    pooled = _pool_returns(shadow_runs)
+    if pooled:
+        curve, level = [], 1.0
+        for d, r in pooled:
+            level *= 1.0 + r
+            curve.append((d, level))
+        res.pooled_is = compute_metrics(curve, [], 0.0, 0.0, 1.0, start=shadow_runs[0][0][0])
+        for k in _NO_BOOK_KEYS:
+            res.pooled_is.pop(k, None)
     return res
 
 
+def _pool_returns(runs: list[list[tuple[datetime, float]]]) -> list[tuple[datetime, float]]:
+    """Daily returns of several runs pooled into one dated series.
+
+    Only within-run returns are used: each is the ratio of two consecutive
+    points of the same run, so no return spans two runs (their equity levels
+    are unrelated). The shadow windows overlap, so each date takes its return
+    from the earliest run that covers it and no date repeats."""
+    by_date: dict[datetime, float] = {}
+    for daily in runs:
+        for (_, v0), (d1, v1) in zip(daily, daily[1:]):
+            by_date.setdefault(d1, v1 / v0 - 1.0)
+    return sorted(by_date.items())
+
+
 def _shadow_is(cfg: AppConfig, train_bars: list, starting_equity: float) -> dict:
-    """In-sample reference: a fresh engine executing the train window. This is
-    optimistic by construction (the estimators see the same data they trade),
-    which is exactly the point — IS should look better than OOS; the gap is the
-    degradation we report."""
+    """Train-window reference: a fresh engine executing the train window from
+    a cold start. Every decision is causal, so this is not in-sample-optimistic;
+    it is the same engine on an earlier period with no warm-up. `_daily` holds
+    its daily curve, base point first, for pooling."""
     if len(train_bars) < 20:
         return {"insufficient_data": True}
     eng = DecisionEngine(cfg)
     brk = SimBroker(starting_equity, eng.instruments, eng.cost_model)
     r = run_backtest(cfg, train_bars, starting_equity, engine=eng, broker=brk)
     m = compute_metrics(r.daily_equity(), r.trades, r.total_fees,
-                        r.traded_notional, starting_equity)
-    m["_daily"] = r.daily_equity()
+                        r.traded_notional, starting_equity, start=r.scored_from)
+    daily = r.daily_equity()
+    m["_daily"] = [(r.scored_from, starting_equity), *daily] if r.scored_from else daily
     return m
+
+
+def _daily(curve: list[EquitySample]) -> list[tuple[datetime, float]]:
+    """Last equity per session date (date carried as datetime midnight)."""
+    out: dict = {}
+    for s in curve:
+        out[s.ts.date()] = s.equity
+    return [(datetime(d.year, d.month, d.day), v) for d, v in sorted(out.items())]
 
 
 def _last_prices(all_bars: list, upto: int) -> dict[str, float]:

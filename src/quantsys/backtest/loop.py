@@ -42,10 +42,17 @@ class BacktestResult:
     warmup_bars: int = 0
     bar_minutes: int = 5
     final_engine_state: dict | None = None
+    unfilled_no_bar: int = 0      # orders not filled because the symbol had no bar
 
     @property
     def final_equity(self) -> float:
         return self.equity_curve[-1].equity if self.equity_curve else self.starting_equity
+
+    @property
+    def scored_from(self) -> datetime | None:
+        """First scored bar. starting_equity is the equity just before it, so
+        it is the base of the first return (see compute_metrics' start)."""
+        return self.equity_curve[0].ts if self.equity_curve else None
 
     def daily_equity(self) -> list[tuple[datetime, float]]:
         """Last equity per session date (date carried as datetime midnight)."""
@@ -72,7 +79,12 @@ def run_backtest(
     starts after warmup.
     score_from: alternatively, execute/score only from this timestamp.
     engine/broker: pass existing instances to continue a session (walk-forward
-    with carried state); fresh ones are built when omitted.
+    with carried state); fresh ones are built when omitted. starting_equity
+    must then be the broker's equity just before the first scored bar.
+
+    An order for a symbol that has no bar at the decision timestamp is not
+    filled (counted in unfilled_no_bar); a held symbol without a bar stays
+    marked at its last close.
     """
     engine = engine or DecisionEngine(cfg)
     broker = broker or SimBroker(
@@ -89,10 +101,18 @@ def run_backtest(
     res = BacktestResult(starting_equity=starting_equity,
                          warmup_bars=warmup_bars,
                          bar_minutes=cfg.engine.decision_bar_minutes)
-    last_prices: dict[str, float] = {}
+    # A continued session (walk-forward fold k >= 1) holds positions whose
+    # symbols need not print on the first bars of this call. Seed their marks
+    # from the carried histories; an empty dict here marked them at zero.
+    last_prices: dict[str, float] = {s: h.last_close for s, h in histories.items() if len(h)}
+    # Time of each symbol's latest bar in this stream. Seeded marks have none,
+    # so they value the book but never price a fill.
+    last_bar_ts: dict[str, datetime] = {}
     fees0, notional0, fills0 = broker.total_fees, broker.traded_notional, broker.n_fills
     trades0 = len(broker.trades)
+    unfilled0 = broker.n_unfilled_no_bar
     i = -1
+    warming = False
 
     for ts, batch in bars:
         i += 1
@@ -101,8 +121,15 @@ def run_backtest(
             if h is not None:
                 h.append(bar)
                 last_prices[sym] = bar.close
+                last_bar_ts[sym] = ts
 
         in_warmup = (i < warmup_bars) or (score_from is not None and ts < score_from)
+        if warming and not in_warmup:
+            # Warm-up decided targets that were never filled, and the stop
+            # tracker kept an entry for each: the first executed bars then
+            # measured stops from warm-up prices and fired them early.
+            engine.end_warmup({s: float(p.qty) for s, p in broker.positions.items()})
+        warming = in_warmup
         equity = broker.equity(last_prices)
         state = MarketState(
             ts=ts, equity=equity, bars=histories,
@@ -118,7 +145,7 @@ def run_backtest(
             res.n_kill_bars += 1
 
         if not in_warmup:
-            broker.execute(decision, last_prices, ts)
+            broker.execute(decision, last_prices, ts, bar_ts=last_bar_ts)
             equity = broker.equity(last_prices)
             # accounting identity — hard invariant
             mtm = broker.mtm(last_prices)
@@ -130,5 +157,6 @@ def run_backtest(
     res.total_fees = broker.total_fees - fees0
     res.traded_notional = broker.traded_notional - notional0
     res.n_fills = broker.n_fills - fills0
+    res.unfilled_no_bar = broker.n_unfilled_no_bar - unfilled0
     res.final_engine_state = engine.state_dict()
     return res

@@ -9,6 +9,7 @@ point-in-time NSE history via the execution layer's historical fetcher.
 
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Iterator
 from datetime import datetime, timedelta
@@ -16,6 +17,8 @@ from datetime import datetime, timedelta
 import numpy as np
 
 from quantsys.core.types import Bar, is_session_open
+
+log = logging.getLogger("quantsys.backtest.synth")
 
 
 def synthetic_bars(
@@ -65,7 +68,12 @@ def replay_bars(directory: str, symbols: list[str]
                 ) -> Iterator[tuple[datetime, dict[str, Bar]]]:
     """CSV replay: <SYMBOL>.csv with header ts,open,high,low,close,volume.
     Bars are merged on their timestamps; symbols missing a bar at a given ts
-    simply have no entry that step (point-in-time faithful)."""
+    simply have no entry that step (point-in-time faithful).
+
+    A timestamp repeated within one file keeps its last row (a re-sent or
+    corrected bar) and the number dropped is logged. The merge pointer used
+    to advance only on an exact match, so one duplicate stalled that symbol
+    for the rest of the replay."""
     import csv
     from pathlib import Path
 
@@ -82,16 +90,28 @@ def replay_bars(directory: str, symbols: list[str]
                     high=float(r["high"]), low=float(r["low"]),
                     close=float(r["close"]), volume=float(r.get("volume", 0) or 0),
                 ))
-        rows.sort(key=lambda b: b.ts)
-        streams[sym] = rows
+        rows.sort(key=lambda b: b.ts)       # stable: file order survives within a ts
+        unique: list[Bar] = []
+        for b in rows:
+            if unique and unique[-1].ts == b.ts:
+                unique[-1] = b
+            else:
+                unique.append(b)
+        if len(unique) < len(rows):
+            log.warning("replay %s: dropped %d duplicate-timestamp rows, kept the last of each",
+                        sym, len(rows) - len(unique))
+        streams[sym] = unique
     all_ts = sorted({b.ts for rows in streams.values() for b in rows})
     idx = dict.fromkeys(streams, 0)
     for ts in all_ts:
         out: dict[str, Bar] = {}
         for sym, rows in streams.items():
             i = idx[sym]
-            if i < len(rows) and rows[i].ts == ts:
-                out[sym] = rows[i]
-                idx[sym] = i + 1
+            # <= so a row can never hold the pointer back once the clock passes it
+            while i < len(rows) and rows[i].ts <= ts:
+                if rows[i].ts == ts:
+                    out[sym] = rows[i]
+                i += 1
+            idx[sym] = i
         if out:
             yield ts, out

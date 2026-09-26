@@ -24,6 +24,7 @@ import math
 from itertools import combinations
 
 import numpy as np
+from scipy.stats import rankdata
 
 
 def _sharpe(x: np.ndarray) -> float:
@@ -34,6 +35,14 @@ def _sharpe(x: np.ndarray) -> float:
     return float(x.mean() / sd) if sd > 0 else float("-inf")
 
 
+def _overfit_share(ranks: np.ndarray, n: int) -> float:
+    """1 below the OOS median rank, 1/2 exactly at it, 0 above. The median
+    of ranks 1..n is (n + 1) / 2; at odd n one config sits on it, and
+    calling that overfit gave pure noise a PBO of (n + 1) / (2n)."""
+    twice = 2.0 * ranks
+    return float(np.mean(np.where(twice < n + 1, 1.0, np.where(twice == n + 1, 0.5, 0.0))))
+
+
 def pbo_cscv(returns: np.ndarray, n_splits: int = 12,
              max_combos: int = 5000, seed: int = 7) -> dict:
     """PBO over a (T observations x N configs) per-period return matrix.
@@ -41,7 +50,14 @@ def pbo_cscv(returns: np.ndarray, n_splits: int = 12,
     T is split into `n_splits` contiguous equal blocks (n_splits even). For each
     way to choose half the blocks as IS (complement = OOS): pick the IS-best
     config, find its OOS rank; logit of the relative rank gives lambda. PBO =
-    fraction of splits whose IS-best config is below the OOS median (lambda < 0).
+    fraction of splits whose IS-best config is below the OOS median (lambda < 0),
+    with a config exactly at the median counting one half.
+
+    Ties are resolved without favouring any column: OOS ranks are averaged
+    over tied values, and when several configs tie for IS-best the split
+    scores the mean over that tied set, the expectation of picking one of
+    them at random. Taking the first tied index and ranking ties in index
+    order made six identical configs score PBO = 1.
     """
     R = np.asarray(returns, dtype=float)
     if R.ndim != 2 or R.shape[1] < 2:
@@ -57,23 +73,19 @@ def pbo_cscv(returns: np.ndarray, n_splits: int = 12,
         combos = [combos[i] for i in idx]
 
     logits: list[float] = []
-    n_overfit = 0
+    n_overfit = 0.0
     for is_blocks in combos:
         is_set = set(is_blocks)
         is_rows = np.concatenate([blocks[b] for b in range(n_splits) if b in is_set])
         oos_rows = np.concatenate([blocks[b] for b in range(n_splits) if b not in is_set])
         is_perf = np.array([_sharpe(R[is_rows, n]) for n in range(N)])
         oos_perf = np.array([_sharpe(R[oos_rows, n]) for n in range(N)])
-        n_star = int(np.argmax(is_perf))
-        # relative OOS rank of the IS-best config (1 = worst ... N = best)
-        order = np.argsort(np.argsort(oos_perf))  # ranks 0..N-1
-        rank = order[n_star] + 1
-        omega = rank / (N + 1)
-        omega = min(max(omega, 1e-6), 1 - 1e-6)
-        lam = math.log(omega / (1 - omega))
-        logits.append(lam)
-        if lam <= 0:        # IS-best fell into the worse OOS half
-            n_overfit += 1
+        best = np.flatnonzero(is_perf == is_perf.max())
+        # relative OOS rank of the IS-best config(s) (1 = worst ... N = best)
+        ranks = rankdata(oos_perf)[best]
+        omega = np.clip(ranks / (N + 1), 1e-6, 1 - 1e-6)
+        logits.append(float(np.mean(np.log(omega / (1 - omega)))))
+        n_overfit += _overfit_share(ranks, N)   # IS-best fell into the worse OOS half
 
     logits_a = np.array(logits)
     return {
