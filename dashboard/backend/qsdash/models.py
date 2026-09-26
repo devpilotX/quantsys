@@ -375,6 +375,27 @@ class EngineStatus(Base):
     detail: Mapped[dict] = mapped_column(JSONVariant, default=dict)
 
 
+class EngineState(Base):
+    """The decision engine's own state (DecisionEngine.state_dict), one row
+    per mode, rewritten after every decision. A restart restores it so the
+    kill latches, the drawdown reference, stops, the regime model, the edge
+    statistics and each sleeve's episode (hold counters, rebalance clock)
+    survive the daily recycle."""
+
+    __tablename__ = "engine_state"
+
+    mode: Mapped[str] = mapped_column(String(8), primary_key=True)
+    saved_at: Mapped[datetime] = mapped_column(DateTime, default=now_ist)
+    bar_ts: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    config_hash: Mapped[str] = mapped_column(String(64), default="")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    state: Mapped[dict] = mapped_column(JSONVariant, default=dict)
+    # The capital settings the drawdown references were measured under
+    # (deployable caps), so a change made while the engine was down is
+    # re-based on restore instead of read as a gain or a loss.
+    basis: Mapped[dict] = mapped_column(JSONVariant, default=dict)
+
+
 class BacktestRun(Base):
     __tablename__ = "backtest_runs"
 

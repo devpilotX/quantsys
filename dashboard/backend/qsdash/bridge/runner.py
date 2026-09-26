@@ -258,35 +258,13 @@ def synthetic_bars(symbols: list[str], start: datetime, n_bars: int,
 
 
 def replay_bars(directory: str, symbols: list[str]):
-    """CSV replay: <SYMBOL>.csv with header ts,open,high,low,close,volume."""
-    import csv
-    from pathlib import Path
+    """CSV replay: <SYMBOL>.csv with header ts,open,high,low,close,volume.
 
-    streams: dict[str, list[Bar]] = {}
-    for sym in symbols:
-        f = Path(directory) / f"{sym}.csv"
-        if not f.exists():
-            continue
-        rows = []
-        with open(f, newline="") as fh:
-            for r in csv.DictReader(fh):
-                rows.append(Bar(
-                    ts=datetime.fromisoformat(r["ts"]), open=float(r["open"]),
-                    high=float(r["high"]), low=float(r["low"]),
-                    close=float(r["close"]), volume=float(r.get("volume", 0) or 0),
-                ))
-        streams[sym] = rows
-    all_ts = sorted({b.ts for rows in streams.values() for b in rows})
-    idx = dict.fromkeys(streams, 0)
-    for ts in all_ts:
-        out = {}
-        for sym, rows in streams.items():
-            i = idx[sym]
-            if i < len(rows) and rows[i].ts == ts:
-                out[sym] = rows[i]
-                idx[sym] = i + 1
-        if out:
-            yield ts, out
+    The backtest's reader, so the two cannot drift: this module had its own
+    copy, which stalled a symbol for good after one duplicate timestamp."""
+    from quantsys.backtest.synth import replay_bars as _replay
+
+    return _replay(directory, symbols)
 
 
 def main() -> None:

@@ -23,10 +23,16 @@ tested with a mock transport; it has NOT been run against the live broker.
 from __future__ import annotations
 
 import argparse
+import copy
+import hashlib
+import json
 import logging
+import math
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+
+from sqlalchemy.exc import SQLAlchemyError
 
 from qsdash.audit import notify_alert
 from qsdash.bridge.commands import CommandConsumer
@@ -35,10 +41,10 @@ from qsdash.bridge.paper import PaperBroker
 from qsdash.bridge.recorder import Recorder
 from qsdash.bus import make_sync_publisher
 from qsdash.db import SessionLocal, now_ist
-from qsdash.models import RuntimeConfig
+from qsdash.models import EngineState, MarketBar, RuntimeConfig
 from quantsys.config import load_config
 from quantsys.core.market_state import MarketState
-from quantsys.core.types import Bar, InstrumentKind, Position, is_session_open
+from quantsys.core.types import Bar, InstrumentKind, Position, bars_per_day, is_session_open
 from quantsys.data.history import BarHistory
 from quantsys.engine.decision import DecisionEngine
 from quantsys.execution.angelone import AngelOneBroker
@@ -54,15 +60,57 @@ _ANGEL_INTERVAL = {1: "ONE_MINUTE", 3: "THREE_MINUTE", 5: "FIVE_MINUTE",
                    10: "TEN_MINUTE", 15: "FIFTEEN_MINUTE", 30: "THIRTY_MINUTE",
                    60: "ONE_HOUR"}
 
+# Warm-up history in decision bars: at least this many, more when a sleeve's
+# lookback or the regime model's training window needs it.
+WARMUP_MIN_BARS = 2000
+# Of those, the newest this many run through decide(); older bars only fill
+# the histories. Deciding every bar of a 4,700-bar window took ~5 minutes.
+WARMUP_DECIDE_BARS = 2000
+# Calendar days per session, with room for weekends and exchange holidays.
+_CALENDAR_PER_SESSION = 1.6
+
+ENGINE_STATE_VERSION = 1
+
+
+def _json_safe(obj, path: str, bad: list[str]):
+    """``obj`` as plain JSON: numpy scalars unwrapped, tuples as lists, and a
+    non-finite float replaced by None and its path recorded (Postgres JSONB
+    refuses NaN, so one would fail every save)."""
+    if isinstance(obj, dict):
+        return {str(k): _json_safe(v, f"{path}.{k}", bad) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v, f"{path}[{i}]", bad) for i, v in enumerate(obj)]
+    item = getattr(obj, "item", None)
+    if callable(item) and not isinstance(obj, (str, bytes)):
+        obj = item()
+    if isinstance(obj, float) and not math.isfinite(obj):
+        bad.append(path)
+        return None
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    if obj is None or isinstance(obj, (str, int, float, bool)):
+        return obj
+    raise TypeError(f"engine state at {path} is not JSON-serialisable: {type(obj).__name__}")
+
 
 class LiveRunner:
+    # False once a saved engine state failed to restore (see _restore_engine_state)
+    _state_save_enabled = True
+    # raw equity before a paper-capital reset applied at start-up, if any
+    _startup_raw_equity: float | None = None
+    _state_key: str | None = None
+
     def __init__(self, cfg_path: str, mode: str = "paper",
                  broker: AngelOneBroker | None = None,
                  paper_capital: float = 1_000_000.0):
         self.cfg = load_config(cfg_path)
         self.cfg_path = cfg_path
         self.mode = mode
+        # The saved engine state belongs to this process's role. mode can be
+        # switched at run time; the row it saves to must not follow it.
+        self._state_key = mode
         self._apply_paper_exploration()
+        self._apply_live_constraints()
         self.publisher = make_sync_publisher(SessionLocal)
 
         self.broker_adapter = broker or AngelOneBroker()
@@ -137,6 +185,18 @@ class LiveRunner:
                     "%s — paper-validation trades only (live/backtest are "
                     "unaffected and stay honest)", self.cfg.kelly.explore_floor, gate)
 
+    def _apply_live_constraints(self) -> None:
+        """Live-ONLY: a cash-segment equity short cannot be carried overnight
+        in India, so the sizer drops any group with one (whole, so a pair
+        never goes out one-legged). The live broker refusing the sell on its
+        own, order by order, sent the other leg of the pair unhedged."""
+        if self.mode != "live":
+            return
+        if self.cfg.sizing.allow_equity_shorts:
+            log.warning("LIVE: equity shorts disabled in sizing (cash-segment shorts "
+                        "cannot be carried overnight); groups with one are dropped whole")
+        self.cfg.sizing.allow_equity_shorts = False
+
     def _merge_instruments(self, master: dict) -> dict:
         from quantsys.core.types import Instrument
         out = {}
@@ -205,6 +265,8 @@ class LiveRunner:
                     "keeping persisted cash so the equity series stays honest.", pc)
             else:
                 try:
+                    # flat book: equity is the cash, before and after
+                    self._startup_raw_equity = float(self.broker.cash)
                     self.reset_paper_capital(float(pc))
                     self._set_runtime_key("paper_capital_applied", pc)
                     log.info("durable paper_capital applied (operator change): "
@@ -299,31 +361,77 @@ class LiveRunner:
                 detail={"data_source": "angelone", "venue": self.mode,
                         "bar_ts": ts.isoformat(),
                         "note": "operator pause: decisions halted, not flattened"})
-            self.commands.poll()
+            self._poll_commands(ts)
             return
 
         prices = self.current_prices()
 
-        # reconciliation: broker is ground truth; mismatch => freeze (no orders)
+        # Live: ONE broker read per bar, and the reconciliation, the risk
+        # engine and the decision all see it. Reconciliation compares it with
+        # the engine's own book (baseline + recorded fills); a mismatch freezes
+        # (no orders). An unreadable broker halts the bar: no decide and no
+        # orders, rather than trading on a fabricated flat book.
         if isinstance(self.broker, LiveExecutionBroker):
-            internal = {s: p.qty for s, p in self.broker.positions.items()}
-            ok, mismatches = self.broker.reconcile(internal)
-            if not ok:
-                self.engine.risk.reconcile(internal, self.broker.positions_map())
+            try:
+                snap = self.broker.refresh_snapshot()
+            except BrokerError as e:
+                log.error("bar %s halted: broker read failed: %s", ts, e)
+                self.broker.record_risk_event(
+                    "broker_unreadable", f"bar {ts.isoformat()} halted: {e}",
+                    severity="crit", ts=ts)
+                self.recorder.heartbeat(
+                    status="halted", market_open=is_session_open(ts),
+                    detail={"data_source": "angelone", "venue": self.mode,
+                            "bar_ts": ts.isoformat(),
+                            "halt": f"broker read failed: {e}"})
+                self._poll_commands(ts)
+                return
+            recon = self.broker.reconcile(snap)
+            if not recon.ok:
+                self.engine.risk.reconcile(recon.internal, recon.broker)
+                self._persist_engine_state(ts)  # the freeze must survive a restart
+            positions = {s: Position(s, p.qty, p.avg_price)
+                         for s, p in snap.positions.items()}
+        else:
+            positions = {s: Position(s, p.qty, getattr(p, "avg_price", 0.0))
+                         for s, p in self.broker.positions.items()}
+
+        foreign = sorted(s for s, p in positions.items() if p.qty and s not in self.instruments)
+        if foreign:
+            # Held at the broker but outside the universe: the engine cannot
+            # price, trade or reconcile them, and they are not in its equity.
+            # Flag them; halting on them would stop every decision, the kill
+            # switch included.
+            self._alert_foreign_holdings(foreign, ts)
+            positions = {s: p for s, p in positions.items() if s in self.instruments}
+        unmarked = sorted(s for s, p in positions.items() if p.qty and s not in prices)
+        if unmarked:
+            # A held position without a price is valued at nothing, which reads
+            # as a loss of its whole notional and can fire the kill switch.
+            # Skip the bar instead: no decision, no orders, and say why.
+            log.error("bar %s halted: no price for held %s", ts, unmarked)
+            self.recorder.heartbeat(
+                status="halted", market_open=is_session_open(ts),
+                detail={"data_source": "angelone", "venue": self.mode,
+                        "bar_ts": ts.isoformat(), "halt": f"no price for held {unmarked}"})
+            self._poll_commands(ts)
+            return
 
         equity = self.broker.equity(prices)
         state = MarketState(
             ts=ts, equity=self.effective_equity(equity), bars=self.histories,
-            instruments=self.instruments,
-            positions={s: Position(s, p.qty, getattr(p, "avg_price", 0.0))
-                       for s, p in self.broker.positions.items()},
+            instruments=self.instruments, positions=positions,
         )
         self.engine.post_bar(state)
         decision = self.engine.decide(state)
         decision_id = self.recorder.record_decision(decision, self.engine)
         self._alert_on_decision(decision)
         try:
-            self.broker.execute(decision, decision_id, prices, ts)
+            if isinstance(self.broker, PaperBroker):
+                # a paper fill needs a print in this bucket, as in the backtest
+                self.broker.execute(decision, decision_id, prices, ts, printed=set(batch))
+            else:
+                self.broker.execute(decision, decision_id, prices, ts)
         except BrokerError as e:
             log.error("execute failed (fail-safe: no new risk this bar): %s", e)
 
@@ -343,6 +451,185 @@ class LiveRunner:
                     "bar_ts": ts.isoformat(), "n_orders": len(decision.orders)},
         )
         self.commands.poll()
+        self._persist_engine_state(ts)
+
+    def _alert_foreign_holdings(self, symbols: list[str], ts: datetime) -> None:
+        """One critical alert per holding outside the universe, per process."""
+        seen = self.__dict__.setdefault("_foreign_alerted", set())
+        new = [s for s in symbols if s not in seen]
+        if not new:
+            return
+        seen.update(new)
+        log.error("broker holds %s, outside the engine universe: not priced, traded "
+                  "or counted in equity; close or move them at the broker", new)
+        notify_alert(self.publisher, severity="crit", kind="foreign_holding",
+                     title="Holding outside the engine universe",
+                     body=f"{self.mode} at {ts.isoformat()}: {', '.join(new)}")
+
+    def _poll_commands(self, bar_ts: datetime | None) -> None:
+        """Apply pending operator commands; save the engine state if any ran,
+        since a re-arm, a kill or a config change must survive a restart."""
+        if self.commands.poll():
+            self._persist_engine_state(bar_ts)
+
+    # ------------------------------------------------------- engine state
+    def _config_hash(self) -> str:
+        blob = json.dumps(self.cfg.model_dump(mode="json"), sort_keys=True, default=str)
+        return hashlib.sha256(blob.encode()).hexdigest()[:16]
+
+    @property
+    def _engine_state_key(self) -> str:
+        return self._state_key or self.mode
+
+    def _capital_basis(self) -> dict:
+        return {"deployable_cap_frac": self.deployable_cap_frac,
+                "deployable_cap_abs": self.deployable_cap_abs}
+
+    def _effective_under(self, raw: float, basis: dict) -> float:
+        """effective_equity(raw) under the deployable caps in ``basis``."""
+        e = raw
+        frac, cap = basis.get("deployable_cap_frac"), basis.get("deployable_cap_abs")
+        if frac is not None:
+            e = min(e, raw * float(frac))
+        if cap is not None:
+            e = min(e, float(cap))
+        return e
+
+    def _rebase_to_current_capital(self, saved_basis: dict) -> None:
+        """The restored drawdown references are in the effective equity of
+        the saved run. A deployable-cap change, or a paper-capital reset,
+        applied from runtime_config at this start would read as a gain or a
+        loss (a 20% cap cut latched the hard kill on the first bar). Scale
+        the references by new / old effective equity of the same book. Only
+        the capital settings move the ratio: market moves while the engine
+        was down stay real P&L."""
+        try:
+            raw_now = float(self.broker.equity(self.current_prices()))
+        except BrokerError as e:
+            log.error("equity unreadable at start (%s): drawdown references not "
+                      "re-based to the capital settings", e)
+            return
+        raw_before = self._startup_raw_equity if self._startup_raw_equity is not None else raw_now
+        old = self._effective_under(raw_before, saved_basis)
+        new = self.effective_equity(raw_now)
+        if not (math.isfinite(old) and math.isfinite(new) and old > 0 and new > 0):
+            log.error("capital basis unusable (old %r, new %r): references not re-based",
+                      old, new)
+            return
+        if abs(new / old - 1.0) > 1e-9:
+            self.engine.risk.rebase_equity(old, new)
+            log.warning("capital settings changed while the engine was down (%s -> %s, "
+                        "paper capital reset: %s): drawdown references scaled by %.6f",
+                        saved_basis, self._capital_basis(),
+                        self._startup_raw_equity is not None, new / old)
+
+    def _persist_engine_state(self, bar_ts: datetime | None) -> None:
+        """Save DecisionEngine.state_dict() as this mode's restart point. A
+        failure is logged, not raised: the engine keeps running on its
+        in-memory state and the previous save stays the restart point."""
+        if not self._state_save_enabled:
+            return
+        bad: list[str] = []
+        try:
+            state = _json_safe(self.engine.state_dict(), "state", bad)
+        except TypeError as e:
+            log.error("engine state not saved: %s", e)
+            return
+        if bad:
+            log.warning("engine state: %d non-finite value(s) saved as null, first: %s",
+                        len(bad), bad[:3])
+        key = self._engine_state_key
+        sess = SessionLocal()
+        try:
+            row = sess.get(EngineState, key)
+            if row is None:
+                row = EngineState(mode=key)
+                sess.add(row)
+            row.saved_at = now_ist()
+            row.bar_ts = bar_ts
+            row.config_hash = self._config_hash()
+            row.version = ENGINE_STATE_VERSION
+            row.state = state
+            row.basis = self._capital_basis()
+            sess.commit()
+        except SQLAlchemyError as e:
+            sess.rollback()
+            log.error("engine state not saved; a restart resumes from the previous save: %s", e)
+        finally:
+            sess.close()
+
+    def _restore_engine_state(self) -> bool:
+        """Resume from the state the previous run of this mode saved. Call
+        after warm-up and daily-panel seeding. Returns True when restored.
+
+        An unreadable save is left in place and no new save replaces it: it
+        may hold a kill latch or a drawdown reference, and overwriting it with
+        a fresh engine's state would erase them for good."""
+        key = self._engine_state_key
+        sess = SessionLocal()
+        try:
+            row = sess.get(EngineState, key)
+            snap = None if row is None else (row.version, row.config_hash, row.saved_at,
+                                              row.bar_ts, row.state, row.basis or {})
+        except SQLAlchemyError as e:
+            log.error("engine state unreadable (is the engine_state migration applied?): "
+                      "starting from warm-up: %s", e)
+            return False
+        finally:
+            sess.close()
+        if snap is None:
+            log.info("no saved %s engine state: starting from warm-up", key)
+            return False
+        version, config_hash, saved_at, bar_ts, state, basis = snap
+        try:
+            if version != ENGINE_STATE_VERSION:
+                raise ValueError(f"version {version}, this build reads {ENGINE_STATE_VERSION}")
+            # A throwaway engine takes the load first, so a bad save cannot
+            # leave the live engine half restored.
+            DecisionEngine(self.cfg, instruments=self.instruments).restore_state(
+                copy.deepcopy(state))
+            self.engine.restore_state(state)
+        except (KeyError, TypeError, ValueError, AttributeError) as e:
+            self._state_save_enabled = False
+            log.error("saved %s engine state could not be restored (%s): starting from "
+                      "warm-up and NOT saving over it; inspect engine_state", self.mode, e)
+            notify_alert(self.publisher, severity="crit", kind="engine_state",
+                         title="Saved engine state not restored",
+                         body=f"{self.mode}: {e}. Kill latches and the drawdown reference "
+                              "from before the restart are not in effect.")
+            return False
+        if config_hash != self._config_hash():
+            log.warning("config changed since the %s engine state was saved; restored anyway",
+                        key)
+        self._rebase_to_current_capital(basis)
+        log.info("%s engine state restored (saved %s, last bar %s)", key, saved_at, bar_ts)
+        return True
+
+    def _seed_marks_for_held(self) -> None:
+        """Last recorded close for every held symbol warm-up did not price, so
+        the book is never valued with a position missing."""
+        missing = [s for s, p in self.broker.positions.items()
+                   if p.qty and s not in self._last_prices]
+        if not missing:
+            return
+        sess = SessionLocal()
+        try:
+            tf = self.cfg.engine.decision_bar_minutes
+            for sym in missing:
+                last = (sess.query(MarketBar.close)
+                        .filter(MarketBar.symbol == sym, MarketBar.tf_minutes == tf)
+                        .order_by(MarketBar.ts.desc()).limit(1).scalar())
+                if last is not None and math.isfinite(last) and last > 0:
+                    self._last_prices[sym] = float(last)
+                    log.warning("held %s had no warm-up price; marked at its last "
+                                "recorded close %.2f", sym, last)
+                else:
+                    log.error("held %s has no price at all; bars stay halted until "
+                              "it prints", sym)
+        except SQLAlchemyError as e:
+            log.error("could not read last recorded closes for %s: %s", missing, e)
+        finally:
+            sess.close()
 
     # --------------------------------------------------------------- loop
     def _alert_on_decision(self, decision) -> None:
@@ -386,60 +673,113 @@ class LiveRunner:
                          title="Market-data feed recovered", body=self.mode)
             self._feed_stale = False
 
-    def _warmup_from_history(self, lookback_bars: int = 2000) -> None:
-        """Replay recent Angel history through the engine (post_bar+decide, NO
-        execution) so strategies, online edge-stats and the regime HMM are warm
-        at the FIRST live bar. Without it the engine starts blind: with only a
-        handful of live bars no strategy has its lookback, so it emits 0 signals
-        for days (the 2026-06-15 'no trades' symptom). Mirrors the backtest
-        warmup (backtest/loop.py). Best-effort — never blocks the engine start.
+    def warmup_bars_needed(self) -> int:
+        """Decision bars of history the engine needs at its first live bar:
+        every enabled sleeve's lookback, the covariance window, and the regime
+        model's full training window at its slower clock."""
+        cfg = self.cfg
+        needs = [WARMUP_MIN_BARS, cfg.engine.cov_window_bars + 1,
+                 cfg.regime.timeframe_bars * (cfg.regime.train_window + 2)]
+        needs += [s.warmup_bars() for s in self._all_strategies]
+        return int(max(needs))
+
+    def _warmup_from_history(self, lookback_bars: int | None = None,
+                             decide_bars: int = WARMUP_DECIDE_BARS) -> None:
+        """Replay recent Angel history so the histories, the regime model and
+        the edge statistics are warm at the first live bar (without it the
+        engine started blind and took no trades for days, 2026-06-15). The
+        newest ``decide_bars`` bars run through post_bar and decide (NO
+        execution); older ones only fill the histories. Best-effort: it never
+        blocks the engine start.
+
+        The window is sized in sessions of the configured clock. It used to
+        assume 75 bars a session (the 5-minute clock), so on 15-minute bars
+        it fetched about 900 bars: the regime HMM, which needs 1,500 to fit
+        at all, never fitted live, and the pairs sleeve never had its
+        lookback, while the backtest ran both.
+
+        Replayed decisions must not leave risk state behind: they mark today's
+        book at historical prices, so a replayed peak became the drawdown
+        reference and a replayed dip could latch a kill. The risk engine and
+        the tier ladder are put back as they were before the replay.
         """
         bar_min = self.cfg.engine.decision_bar_minutes
         interval = _ANGEL_INTERVAL.get(bar_min)
         if interval is None:
             log.warning("warmup: no Angel interval for %d-min bars; skipping", bar_min)
             return
-        days = int(lookback_bars / 75 * 1.7) + 7  # ~75 session bars/day + buffer
+        lookback_bars = lookback_bars or self.warmup_bars_needed()
+        sessions = math.ceil(lookback_bars / bars_per_day(bar_min))
+        days = math.ceil(sessions * _CALENDAR_PER_SESSION) + 7
         end = now_ist()
         start = end - timedelta(days=days)
+        # a candle whose window has not closed yet is still changing
+        complete_before = end - timedelta(minutes=bar_min)
         per_sym: dict[str, list] = {}
         for sym in self.instruments:
             try:
                 rows = self.broker_adapter.historical_candles(sym, interval, start, end)
-                if rows:
-                    per_sym[sym] = rows[-lookback_bars:]
             except Exception as e:
                 log.warning("warmup fetch %s failed: %s", sym, e)
+                continue
+            rows = [r for r in rows if r[0] <= complete_before]
+            if rows:
+                per_sym[sym] = rows[-lookback_bars:]
         if not per_sym:
             log.warning("warmup: no history fetched — engine starts cold")
             return
+        short = sorted(s for s, rows in per_sym.items() if len(rows) < lookback_bars)
+        if short:
+            log.warning("warmup: %d of %d instruments have fewer than %d bars (%s...)",
+                        len(short), len(per_sym), lookback_bars, short[:5])
+
+        # One broker read for the whole replay: the held book does not change
+        # while replaying, and on the live broker every re-read is a call
+        # that can fail and would abort the warm-up.
+        positions = {s: Position(s, p.qty, getattr(p, "avg_price", 0.0))
+                     for s, p in self.broker.positions.items()}
+        cash = float(self.broker.cash)
+
+        def replay_equity() -> float:
+            mtm = 0.0
+            for s, p in positions.items():
+                px, inst = self._last_prices.get(s), self.instruments.get(s)
+                if px is not None and inst is not None:
+                    mtm += p.qty * px * inst.point_value
+            return self.effective_equity(cash + mtm)
+
+        risk_before = copy.deepcopy(self.engine.risk.state_dict())
+        ladder_before = copy.deepcopy(self.engine.ladder.state_dict())
         # merge per-symbol candles into time-ordered batches (point-in-time)
         all_ts = sorted({r[0] for rows in per_sym.values() for r in rows})
+        session_ts = [ts for ts in all_ts if is_session_open(ts)]
+        decide_from = session_ts[-decide_bars] if len(session_ts) > decide_bars else None
         idx = dict.fromkeys(per_sym, 0)
         n = 0
-        for ts in all_ts:
-            for s, rows in per_sym.items():
-                i = idx[s]
-                if i < len(rows) and rows[i][0] == ts:
-                    _, o, h, lo, c, v = rows[i]
-                    self.histories[s].append(Bar(ts=ts, open=o, high=h, low=lo,
-                                                 close=c, volume=v))
-                    self._last_prices[s] = c
-                    idx[s] = i + 1
-            if not is_session_open(ts):
-                continue
-            state = MarketState(
-                ts=ts,
-                equity=self.effective_equity(self.broker.equity(self._last_prices)),
-                bars=self.histories, instruments=self.instruments,
-                positions={s: Position(s, p.qty, getattr(p, "avg_price", 0.0))
-                           for s, p in self.broker.positions.items()},
-            )
-            self.engine.post_bar(state)
-            self.engine.decide(state)  # warms stats/regime; orders NOT executed
-            n += 1
-        log.info("warmup: replayed %d bars across %d instruments (engine ready)",
-                 n, len(per_sym))
+        try:
+            for ts in all_ts:
+                for s, rows in per_sym.items():
+                    i = idx[s]
+                    if i < len(rows) and rows[i][0] == ts:
+                        _, o, h, lo, c, v = rows[i]
+                        self.histories[s].append(Bar(ts=ts, open=o, high=h, low=lo,
+                                                     close=c, volume=v))
+                        self._last_prices[s] = c
+                        idx[s] = i + 1
+                if not is_session_open(ts) or (decide_from is not None and ts < decide_from):
+                    continue
+                state = MarketState(
+                    ts=ts, equity=replay_equity(), bars=self.histories,
+                    instruments=self.instruments, positions=positions,
+                )
+                self.engine.post_bar(state)
+                self.engine.decide(state)  # warms stats/regime; orders NOT executed
+                n += 1
+        finally:
+            self.engine.risk.load_state(risk_before)
+            self.engine.ladder.load_state(ladder_before)
+        log.info("warmup: %d bars of history, %d decided, across %d instruments",
+                 len(all_ts), n, len(per_sym))
 
     def _seed_daily_panels(self) -> None:
         """Give every panel sleeve (factor / reversal / downshock — anything
@@ -457,6 +797,7 @@ class LiveRunner:
                 days = max(days, int(s.seed_days_needed()))
         end = now_ist()
         start = end - timedelta(days=days)
+        today = end.date()
         n = 0
         for sym, inst in self.instruments.items():
             if inst.kind != InstrumentKind.EQUITY:
@@ -466,6 +807,12 @@ class LiveRunner:
             except Exception as e:
                 log.warning("daily panel seed %s failed: %s", sym, e)
                 continue
+            # A restart during the session can be handed today's candle while
+            # it is still forming. Seeded as a finished day, it stood in for
+            # the real row: the panel roll keeps an existing row for a date,
+            # so today's full row was dropped and a shock later in the day
+            # was never seen. Today's row is built from live bars instead.
+            rows = [r for r in rows if _row_date(r[0]) < today]
             if rows:
                 for s in sleeves:
                     s.seed_daily(sym, rows)
@@ -491,6 +838,29 @@ class LiveRunner:
                 log.info("panel[%s]: %d names, rows min/med/max=%d/%d/%d",
                          s.name, len(depths), depths[0],
                          depths[len(depths) // 2], depths[-1])
+
+    def _resume_engine(self) -> None:
+        """After warm-up and seeding: restore the previous run's engine state,
+        drop stop state warm-up left on symbols not held, price every held
+        symbol, and save a restart point. Without the restore the 08:50
+        recycle cleared the kill latches, re-based drawdown to that morning,
+        cut every down-shock hold to one session and made the monthly factor
+        rebalance run daily."""
+        held: dict[str, float] | None
+        try:
+            held = {s: float(p.qty) for s, p in self.broker.positions.items()}
+        except BrokerError as e:
+            held = None
+            log.error("positions unreadable at start (%s); warm-up stop state kept", e)
+        if held is not None:
+            self._seed_marks_for_held()        # before the re-base values the book
+        restored = self._restore_engine_state()
+        # A restored engine's stops and cooldowns are the previous run's real
+        # ones (a cooldown sits on a symbol just stopped out, i.e. flat), so
+        # only a cold start drops what warm-up left behind.
+        if held is not None and not restored:
+            self.engine.end_warmup(held)
+        self._persist_engine_state(None)
 
     def _seed_equity_snapshot(self) -> None:
         """Write one equity point at startup so the dashboard shows starting
@@ -569,6 +939,7 @@ class LiveRunner:
             self._seed_daily_panels()
         except Exception as e:  # panel sleeves then stay breadth-gated no-ops
             log.warning("daily panel seed failed: %s", e)
+        self._resume_engine()
         self._seed_equity_snapshot()
         notify_alert(self.publisher, severity="info", kind="engine_start",
                      title=f"Engine started ({self.mode})",
@@ -606,7 +977,7 @@ class LiveRunner:
                                                if feed_age is not None else None)})
                     self._alert_on_feed(now)
                     self._last_heartbeat_mono = time.monotonic()
-                self.commands.poll()
+                self._poll_commands(None)
             self._loop_errors = 0
         except (KeyboardInterrupt, SystemExit):
             raise
@@ -614,6 +985,15 @@ class LiveRunner:
             self._loop_errors = getattr(self, "_loop_errors", 0) + 1
             log.error("engine loop tick failed (#%d) — retrying next poll, not "
                       "crashing the engine: %s", self._loop_errors, e)
+
+
+def _row_date(ts) -> date:
+    """Session date of a candle stamp (datetime, date or ISO string)."""
+    if isinstance(ts, datetime):
+        return ts.date()
+    if isinstance(ts, date):
+        return ts
+    return date.fromisoformat(str(ts)[:10])
 
 
 def main() -> None:

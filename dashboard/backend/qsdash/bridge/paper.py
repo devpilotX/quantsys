@@ -152,8 +152,14 @@ class PaperBroker:
 
     # ------------------------------------------------------------ execution
     def execute(self, decision: Decision, decision_id: int,
-                prices: dict[str, float], ts: datetime) -> None:
-        """Fill every order intent immediately at the bar close."""
+                prices: dict[str, float], ts: datetime,
+                printed: set[str] | None = None) -> None:
+        """Fill every order intent immediately at the bar close.
+
+        ``printed`` is the set of symbols with a bar in the decided bucket.
+        An order for any other symbol is not filled this bar: its price is a
+        close from before the decision, and the backtest (SimBroker) refuses
+        the same fill. The engine re-issues it on the next bar."""
         if not decision.orders:
             return
         sess = SessionLocal()
@@ -161,6 +167,10 @@ class PaperBroker:
             self.publisher.bind(sess)
         try:
             for intent in decision.orders:
+                if printed is not None and intent.symbol not in printed:
+                    log.info("paper: %s %+d not filled at %s: no bar in this bucket",
+                             intent.symbol, intent.qty_delta, ts)
+                    continue
                 self._fill_one(sess, intent, decision, decision_id, prices, ts)
             self._persist_cash(sess)
             sess.commit()
