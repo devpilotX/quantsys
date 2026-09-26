@@ -99,6 +99,67 @@ jobs:
         working-directory: dashboard/backend
         run: python -m pytest tests -q -p no:cacheprovider
 
+  migrations:
+    name: alembic migrations match the models
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install engine + dashboard backend
+        working-directory: dashboard/backend
+        run: |
+          python -m pip install -e ../..
+          python -m pip install -e ".[dev]"
+      - name: Upgrade an empty database to head, then compare with the models
+        # The dashboard suite builds its schema from the models, so a model
+        # change without a migration passes every test and then fails on the
+        # VPS. Build the schema the way production does and diff it.
+        working-directory: dashboard/backend
+        env:
+          DATABASE_URL: sqlite:///ci_migrations.db
+        run: |
+          python -m alembic upgrade head
+          python - <<'PY'
+          from alembic.autogenerate import compare_metadata
+          from alembic.migration import MigrationContext
+          from sqlalchemy import create_engine
+          from qsdash.db import Base
+          import qsdash.models  # noqa: F401  (registers every table)
+          engine = create_engine("sqlite:///ci_migrations.db")
+          with engine.connect() as conn:
+              diff = compare_metadata(MigrationContext.configure(conn), Base.metadata)
+          # type and server-default drift is reported loosely by SQLite: only
+          # missing or extra tables and columns fail the job
+          structural = [d for d in diff if d[0] in ("add_table", "remove_table",
+                                                     "add_column", "remove_column")]
+          for d in structural:
+              print("DRIFT", d)
+          assert not structural, f"{len(structural)} schema differences between migrations and models"
+          print("migrations match the models")
+          PY
+
+  frontend:
+    name: frontend lint + types + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard/frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: dashboard/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - run: npm run build
+
   audit:
     name: dependency audit
     runs-on: ubuntu-latest
@@ -165,7 +226,7 @@ jobs:
     # every time the matrix changes.
     name: CI passed
     if: always()
-    needs: [lint, test, dashboard, audit, secrets, build]
+    needs: [lint, test, dashboard, migrations, frontend, audit, secrets, build]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any required job failed
