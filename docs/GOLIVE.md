@@ -12,9 +12,7 @@ guarded in code as well as here; this document is the human procedure.
 - [ ] **VPS == whitelisted IP.** `deploy/scripts/preflight.py` checks the VPS
       public IP equals the Angel One whitelisted static IP (80.225.240.46 on
       record). DNS for the domain already points there.
-- [ ] Connect the VPS control session
-      if you want the agent to drive the VPS; otherwise run the commands below
-      over SSH yourself.
+- [ ] Run the commands below on the VPS over SSH.
 
 ## 1. Deploy the stack (paper, real cert)
 

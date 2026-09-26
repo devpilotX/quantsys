@@ -14,10 +14,11 @@ logs/
 !/dashboard/frontend/src/app/(dash)/logs/**
 *.parquet
 *.duckdb
+*.png
+# local tool and editor state: may hold tokens, never commit
 .mcp.json.txt
 .mcp.json
 settings.json.txt
-*.png
 settings.local.json
 
 # dashboard

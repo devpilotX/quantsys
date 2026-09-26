@@ -1,6 +1,7 @@
 # Decision log — dashboard & control plane
 
-Every non-obvious choice and every gap filled under the autonomy mandate.
+Every non-obvious choice, and every gap in the original spec that had to be
+filled, with the reason.
 
 1. **Live mode is rejected by the engine until a real broker adapter exists.**
    The spec demands a paper↔live switch; the execution layer (Angel One
@@ -161,10 +162,9 @@ Every non-obvious choice and every gap filled under the autonomy mandate.
   never run against the real broker.** The real-broker shakedown is the
   paper-on-VPS window (GOLIVE.md step 2) — feed, postback, reconciliation,
   rate limits can only be validated against live Angel One.
-- VPS deploy itself is pending: the `vps-control` MCP isn't connected this
-  session, and live trading needs the
-  rotated credentials. `deploy/scripts/preflight.py` + `docs/GOLIVE.md` make it
-  a mechanical sequence once those two are in place.
+- Live trading needs the rotated credentials first.
+  `deploy/scripts/preflight.py` and `docs/GOLIVE.md` make the rest a mechanical
+  sequence once they are in place.
 - Watchdog container for infra-level heartbeat-stale alerting (UI + in-app
   alert exist; an out-of-band cron belongs on the VPS).
 - Candle chart with trade markers (`CandleChart`) is built but not yet placed
