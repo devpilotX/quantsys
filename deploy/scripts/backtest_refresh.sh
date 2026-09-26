@@ -27,7 +27,7 @@ CFG="/app/engine/config/base.yaml"
 case "$INTERVAL" in
   FIVE_MINUTE)    DATA=/app/data/nse ;;
   FIFTEEN_MINUTE) DATA=/app/data/nse15 ;;
-  *)              DATA="/app/data/nse_$(echo "$INTERVAL" | tr 'A-Z' 'a-z')" ;;
+  *)              DATA="/app/data/nse_$(echo "$INTERVAL" | tr '[:upper:]' '[:lower:]')" ;;
 esac
 
 # use sudo only when not already root (systemd runs as root; humans use sudo)

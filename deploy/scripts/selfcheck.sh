@@ -16,7 +16,7 @@
 #   * off-box backup freshness: an OK in _audit/offbox.log within 26 h
 #     (see scripts/offbox_backup.sh).
 set -u
-cd "$(dirname "$0")/.."          # -> deploy/
+cd "$(dirname "$0")/.." || exit 1   # -> deploy/
 LOG=_audit/selfcheck.log
 mkdir -p _audit
 fail=""

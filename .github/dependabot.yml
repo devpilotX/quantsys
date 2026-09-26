@@ -35,6 +35,14 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    groups:
+      # react-dom must be the same version as react, or React refuses to run.
+      # Bumped alone, react-dom 19.3.0 sat on react 19.2.4.
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      # eslint-config-next is released in lockstep with next
+      next:
+        patterns: ["next", "eslint-config-next"]
 
   - package-ecosystem: github-actions
     directory: "/"

@@ -13,7 +13,7 @@
 #             -pass pass:'<BACKUP_PASSPHRASE>'
 # Restore:  pg_restore -U quantsys -d quantsys --clean --if-exists quantsys.dump
 set -u
-cd "$(dirname "$0")/.."          # -> deploy/
+cd "$(dirname "$0")/.." || exit 1   # -> deploy/
 LOG=_audit/offbox.log
 OUTDIR=_audit/offbox
 mkdir -p "$OUTDIR"
@@ -59,5 +59,7 @@ resp=$(curl -s --max-time 180 "https://api.telegram.org/bot${TOK}/sendDocument" 
 echo "$resp" | grep -q '"ok":true' || fail "telegram sendDocument rejected"
 
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) OK sent ${enc##*/} ${size}B" >> "$LOG"
+# the names are ours (quantsys-<stamp>.dump.enc), so ls is safe to parse here
+# shellcheck disable=SC2012
 ls -1t "$OUTDIR"/*.enc 2>/dev/null | tail -n +4 | xargs -r rm -f
 exit 0
