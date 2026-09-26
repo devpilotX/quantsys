@@ -56,6 +56,11 @@ class SizingConfig(BaseModel):
     # Off by default: at a small float the honest answer stays "too big to trade".
     min_lot_promotion: bool = False
     promotion_max_risk_frac: float = Field(0.005, gt=0, le=0.02)
+    # A net short in a cash equity cannot be carried overnight in India. The
+    # live runner turns this off; groups that would leave one are then dropped
+    # whole, so no hedge leg goes out alone. Backtest and paper keep the
+    # research construction.
+    allow_equity_shorts: bool = True
 
 
 class KellyConfig(BaseModel):
@@ -67,6 +72,9 @@ class KellyConfig(BaseModel):
     var_floor: float = 1e-10
     ramp_floor: float = 0.08       # incubation allocation while n_eff < ramp_obs
     ramp_obs: float = 750.0
+    # The incubation floor is withdrawn early only when the shrunk mean edge
+    # is clearly negative: t = mean / sqrt(var / n_eff) <= -ramp_withdraw_t.
+    ramp_withdraw_t: float = Field(2.0, gt=0)
     explore_floor: float = 0.0     # forced min allocation (paper exploration only); 0 = off
     # Regime-conditional Kelly tilt: per-(strategy, regime-label) edge stats
     # (same EWMA estimator, soft-assigned by regime probability) tilt each

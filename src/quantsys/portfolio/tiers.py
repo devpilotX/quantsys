@@ -36,7 +36,12 @@ class TierLadder:
         self.ladder: list[TierConfig] = cfg.ladder
         self._idx: int | None = None
 
-    def resolve(self, equity: float) -> TierState:
+    def resolve(self, equity: float | None) -> TierState:
+        if equity is None or not math.isfinite(equity):
+            # Unreadable equity must not move the ladder: report the tier held
+            # (the bottom one before any readable equity). The risk pre-pass
+            # halts the bar.
+            equity = self.ladder[self._idx if self._idx is not None else 0].min_equity
         target = 0
         for i, t in enumerate(self.ladder):
             if equity >= t.min_equity:

@@ -7,18 +7,22 @@
     5. signals from the strategy ensemble          strategies/*
     6. hard-stop vetoes + cooldowns                risk/engine.py
     7. fractional-Kelly allocation                 portfolio/allocation.py
-    8. risk-based sizing -> vol targeting ->
-       exposure rules -> lots/cost gate            portfolio/, risk/rules.py
+    8. base-risk sizing -> vol targeting ->
+       throttle x regime scaler -> exposure rules ->
+       lots/cost gate/cap re-check                 portfolio/, risk/rules.py
     9. order diff with anti-churn bands            engine/orders.py
 
 `decide(state)` is pure given (state, config, engine state) — no I/O, no
 wall clock, no randomness — so backtest, paper and live run THE SAME code.
-Orchestrator contract per new bar: post_bar(state) THEN decide(state).
+Orchestrator contract per new bar: post_bar(state) THEN decide(state). Once
+warm-up ends: end_warmup(held quantities).
 """
 
 from __future__ import annotations
 
+import logging
 import math
+from collections.abc import Mapping
 
 import numpy as np
 
@@ -35,11 +39,12 @@ from quantsys.costs import CostModel
 from quantsys.data.features import aligned_close_matrix, corr_from_cov, ewma_cov, ewma_vol
 from quantsys.engine.orders import diff_orders
 from quantsys.portfolio.allocation import KellyAllocator, VolTargeter
+from quantsys.portfolio.book import TargetBook
 from quantsys.portfolio.sizing import SizingEngine
 from quantsys.portfolio.tiers import TierLadder
 from quantsys.regime.detector import RegimeDetector
 from quantsys.risk.engine import RiskEngine
-from quantsys.risk.rules import RiskContext, apply_exposure_rules
+from quantsys.risk.rules import RiskContext, apply_exposure_rules, cap_breaches
 
 # import for side effect: strategy registration
 from quantsys.strategies import downshock as _downshock  # noqa: F401
@@ -51,6 +56,8 @@ from quantsys.strategies import tom as _tom  # noqa: F401
 from quantsys.strategies import trend as _trend  # noqa: F401
 from quantsys.strategies import voloptions as _voloptions  # noqa: F401
 from quantsys.strategies.base import REGISTRY, OnlineEdgeStats, Strategy
+
+log = logging.getLogger("quantsys.engine.decision")
 
 _TRADEABLE = {InstrumentKind.EQUITY, InstrumentKind.FUTURE}
 
@@ -100,6 +107,7 @@ class DecisionEngine:
         self._unit_nets: dict[str, dict[str, float]] = {}      # decided at t
         self._unit_nets_old: dict[str, dict[str, float]] = {}  # decided at t-1
         self._last_closes: dict[str, float] = {}
+        self._last_throttle = 1.0   # drawdown throttle at the last sized decision
 
     # ------------------------------------------------------------------ api
     def decide(self, state: MarketState) -> Decision:
@@ -111,6 +119,10 @@ class DecisionEngine:
 
         if pre.halted_reason is not None:
             audits.append(AuditEvent("engine", "halted", pre.halted_reason))
+            # The unit book goes flat while frozen, as on the kill path. Without
+            # the shift post_bar re-books the whole move since the last decided
+            # bar on every halted bar, corrupting the edge stats.
+            self._shift_unit_nets({}, prices)
             return self._decision(state, tier, audits, halted=True,
                                   kill_reason=None, risk_pre=pre)
 
@@ -121,8 +133,10 @@ class DecisionEngine:
                                  kill=True)
             self.risk.stops.refresh([])
             self._shift_unit_nets({}, prices)
+            # flatten fills pay impact like any other fill (CONTRIBUTING rule 2)
             return self._decision(state, tier, audits, halted=False,
-                                  kill_reason=pre.kill_reason, risk_pre=pre, orders=orders)
+                                  kill_reason=pre.kill_reason, risk_pre=pre, orders=orders,
+                                  sigma_daily=self.sigma_daily(state, [o.symbol for o in orders]))
 
         regime = self.detector.update(state)
         # attribution memory for post_bar: the unit book decided THIS bar earns
@@ -166,7 +180,12 @@ class DecisionEngine:
 
         kelly_f = self.allocator.allocate(self.edge_stats, regime, active_names,
                                           audits, tilts=self._regime_tilts(regime, active_names))
-        book = self.sizer.build_raw(signals, kelly_f, state.equity * pre.risk_frac_eff, view, audits)
+        # Size at base risk and vol-target THAT book; the throttle comes after.
+        # The vol targeter scales toward its target, so a throttle applied to
+        # the risk budget first was undone whenever the scaler sat between its
+        # clips, and a drawdown did not shrink the book at all.
+        book = self.sizer.build_raw(signals, kelly_f, state.equity * cfg.sizing.base_risk_frac,
+                                    view, audits)
 
         cov_syms, sigma = self._covariance(state, book.symbols())
         vol_scaler = self.voltargeter.scaler(book, prices, self.instruments,
@@ -174,25 +193,47 @@ class DecisionEngine:
         if regime.risk_scaler != 1.0:
             audits.append(AuditEvent("regime", "risk_scaler",
                                      f"{regime.label} ({regime.source}) x{regime.risk_scaler:.2f}"))
-        book.scale_all(vol_scaler * regime.risk_scaler)
+        if pre.throttle != 1.0:
+            audits.append(AuditEvent("risk", "drawdown_throttle",
+                                     f"drawdown {pre.drawdown:.4f} x{pre.throttle:.3f}",
+                                     before=1.0, after=pre.throttle))
+        risk_scale = regime.risk_scaler * pre.throttle
+        if risk_scale > 0.0:
+            book.scale_all(vol_scaler * risk_scale)
+        else:
+            book = TargetBook()  # nothing is sized at zero risk; the audits above say why
 
         ctx = RiskContext(
             equity=state.equity, prices=prices, instruments=self.instruments,
             cfg=cfg.exposure, tier=tier, corr_symbols=cov_syms,
             corr=corr_from_cov(sigma) if sigma is not None else None,
         )
-        apply_exposure_rules(book, ctx, audits)
+        cut = apply_exposure_rules(book, ctx, audits)
+        # A throttle that fell this bar is a cut the band must not hold back.
+        # A throttle merely below 1 is not: exempting every reduction for the
+        # whole drawdown, while increases still met the band, ratcheted the
+        # book down on noise.
+        if pre.throttle < self._last_throttle - 1e-12:
+            cut.update(book.symbols())
+        self._last_throttle = pre.throttle
 
         sigma_daily = self.sigma_daily(state, book.symbols())
-        targets = self.sizer.finalize(book, tier, view, dict(state.positions), sigma_daily, audits)
+        targets = self.sizer.finalize(book, tier, view, dict(state.positions), sigma_daily, audits,
+                                      ctx=ctx, risk_scale=risk_scale, cut=cut)
 
         self.risk.stops.refresh(targets)
         self._shift_unit_nets(unit_nets, prices)
 
+        # Reductions the band must not suppress: symbols the caps or the
+        # throttle cut this bar, and symbols held above a cap right now.
+        held = {s: float(p.qty) for s, p in state.positions.items() if p.qty != 0}
+        for breach in cap_breaches(held, ctx):
+            cut.update(breach.symbols if breach.symbols else held)
         orders = diff_orders(
             targets, state.positions, self.instruments, prices, tier,
             self.sizer.effective_min_notional(state.equity),
             risk_reducing_symbols={sym for (_, sym) in hits},
+            cap_reducing_symbols=cut,
         )
         # Exits can name symbols that are no longer in the proposed book, and a
         # fill still incurs impact, so extend the estimate to cover every order.
@@ -210,6 +251,12 @@ class DecisionEngine:
         if not self._unit_nets:
             return
         for strat_name, nets in sorted(self._unit_nets.items()):
+            if strat_name not in self.edge_stats:
+                # a sleeve disabled since its unit book was decided; raising
+                # here would wedge every later bar
+                log.warning("post_bar: no edge stats for sleeve %r (not enabled); "
+                            "its unit book is skipped", strat_name)
+                continue
             pnl = 0.0
             for sym, q in nets.items():
                 px_now, px_prev = state.price(sym), self._last_closes.get(sym)
@@ -243,6 +290,21 @@ class DecisionEngine:
                                                 k.var_floor)
                             buckets[label] = b
                         b.update(r, weight=p)
+
+    def end_warmup(self, positions: Mapping[str, float]) -> None:
+        """Call once when warm-up ends, with the quantities actually held.
+
+        Warm-up runs decide() for targets that are never executed, and the stop
+        tracker keeps an entry once created, so the first live bar measured
+        stops from warm-up reference prices. Stop entries, trailing state and
+        cooldowns are dropped for every symbol flat (or absent) in `positions`;
+        held symbols keep theirs.
+        """
+        held = {s for s, q in positions.items() if q != 0}
+        stale = sorted({e["symbol"] for e in self.risk.stops.entries.values()} - held)
+        self.risk.retain_symbols(held)
+        if stale:
+            log.info("end_warmup: dropped warm-up stop state for flat symbols %s", stale)
 
     def _regime_tilts(self, regime, active: list[str]) -> dict[str, float] | None:
         """Learned regime-conditional Kelly tilt (see KellyConfig). Returns None
@@ -367,9 +429,22 @@ class DecisionEngine:
             "unit_nets": self._unit_nets,
             "unit_nets_old": self._unit_nets_old,
             "last_closes": self._last_closes,
+            "last_throttle": self._last_throttle,
         }
 
     def load_state(self, d: dict) -> None:
+        self._load(d, restore=False)
+
+    def restore_state(self, d: dict) -> None:
+        """Resume from a snapshot saved by an earlier run of the live engine,
+        after this start's warm-up and daily-panel seeding: the kill latches,
+        drawdown references, stops, tier state, regime model, edge statistics
+        and every sleeve's episode (held basket, hold counters, rebalance
+        clock). Sleeves keep data seeded at this start when it is newer than
+        the snapshot's (Strategy.restore_state)."""
+        self._load(d, restore=True)
+
+    def _load(self, d: dict, *, restore: bool) -> None:
         self.risk.load_state(d.get("risk", {}))
         self.ladder.load_state(d.get("ladder", {}))
         self.detector.load_state(d.get("detector", {}))
@@ -389,7 +464,15 @@ class DecisionEngine:
                                    d.get("last_regime_probs", {}).items()}
         for s in self.strategies:
             if s.name in d.get("strategies", {}):
-                s.load_state(d["strategies"][s.name])
-        self._unit_nets = d.get("unit_nets", {})
-        self._unit_nets_old = d.get("unit_nets_old", {})
+                if restore:
+                    s.restore_state(d["strategies"][s.name])
+                else:
+                    s.load_state(d["strategies"][s.name])
+        # Keep unit books only for enabled sleeves: a sleeve switched off by a
+        # config override has no edge stats to book them into.
+        enabled = {s.name for s in self.strategies}
+        self._unit_nets = {k: v for k, v in d.get("unit_nets", {}).items() if k in enabled}
+        self._unit_nets_old = {k: v for k, v in d.get("unit_nets_old", {}).items() if k in enabled}
         self._last_closes = d.get("last_closes", {})
+        throttle = d.get("last_throttle", 1.0)
+        self._last_throttle = float(throttle) if throttle is not None else 1.0

@@ -13,6 +13,7 @@ Semantics of the two halt classes (deliberately different):
 from __future__ import annotations
 
 import math
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -90,6 +91,10 @@ class StopTracker:
                 out[(e["strategy"], e["symbol"])] = f"stop: {px:.2f} >= {anchor + e['stop_distance']:.2f}"
         return out
 
+    def retain(self, symbols: Collection[str]) -> None:
+        """Keeps only the entries (trailing state included) on `symbols`."""
+        self.entries = {k: e for k, e in self.entries.items() if e["symbol"] in symbols}
+
     def to_dict(self) -> dict:
         return {"entries": self.entries}
 
@@ -110,25 +115,46 @@ class RiskEngine:
         self.day_killed = False
         self.dd_killed = False
         self.halted_reason: str | None = None
-        self.cooldowns: dict[str, int] = {}  # "strategy|symbol" -> bars left
+        self.cooldowns: dict[str, int] = {}  # "strategy|symbol" -> blocked bars left
 
     # ----------------------------------------------------------------- core
-    def pre_decide(self, ts: datetime, equity: float) -> RiskPre:
+    def pre_decide(self, ts: datetime, equity: float | None) -> RiskPre:
+        # Each bar consumes one blocked bar; an entry lapses on the bar after
+        # it reaches zero, so a cooldown of N blocks exactly the N decision
+        # bars after the hit bar.
+        for k in list(self.cooldowns):
+            self.cooldowns[k] -= 1
+            if self.cooldowns[k] < 0:
+                del self.cooldowns[k]
+
+        if equity is None or not math.isfinite(equity):
+            # Unreadable equity is not evidence of anything. It must not become
+            # a high-water mark or a day anchor (NaN there disables both kills
+            # for good), and no new risk may be taken on it: halt this bar only.
+            reason = f"equity not finite ({equity!r}): bar halted"
+            if self.halted_reason is not None:
+                reason = f"{self.halted_reason}; {reason}"
+            return RiskPre(
+                risk_frac_eff=0.0,
+                drawdown=math.nan,
+                throttle=0.0,
+                day_pnl=math.nan,
+                kill_reason=self._kill_reason(),
+                halted_reason=reason,
+            )
+
         d = str(session_date(ts))
         if d != self.day_date:
             self.day_date = d
             self.day_anchor = equity
             if self.cfg.auto_rearm_daily:
                 self.day_killed = False
-        self.hwm = max(self.hwm or equity, equity)
-        self.day_anchor = self.day_anchor or equity
+        if self.hwm is None or equity > self.hwm:
+            self.hwm = equity
+        if self.day_anchor is None:
+            self.day_anchor = equity
 
-        for k in list(self.cooldowns):
-            self.cooldowns[k] -= 1
-            if self.cooldowns[k] <= 0:
-                del self.cooldowns[k]
-
-        dd = max(0.0, 1.0 - equity / self.hwm) if self.hwm and self.hwm > 0 else 0.0
+        dd = max(0.0, 1.0 - equity / self.hwm) if self.hwm > 0 else 0.0
         day_pnl = equity - self.day_anchor
         if equity <= 0:
             self.dd_killed = True
@@ -138,16 +164,18 @@ class RiskEngine:
             self.dd_killed = True
 
         throttle = float(min(max(1.0 - dd / self.cfg.max_drawdown, 0.0), 1.0))
-        kill = ("max_drawdown" if self.dd_killed else
-                "daily_loss_limit" if self.day_killed else None)
         return RiskPre(
             risk_frac_eff=self.base_risk_frac * throttle,
             drawdown=dd,
             throttle=throttle,
             day_pnl=day_pnl,
-            kill_reason=kill,
+            kill_reason=self._kill_reason(),
             halted_reason=self.halted_reason,
         )
+
+    def _kill_reason(self) -> str | None:
+        return ("max_drawdown" if self.dd_killed else
+                "daily_loss_limit" if self.day_killed else None)
 
     def register_stop_hits(self, hits: dict[tuple[str, str], str]) -> None:
         for (strategy, symbol) in hits:
@@ -155,6 +183,12 @@ class RiskEngine:
 
     def in_cooldown(self, strategy: str, symbol: str) -> bool:
         return f"{strategy}|{symbol}" in self.cooldowns
+
+    def retain_symbols(self, held: Collection[str]) -> None:
+        """Drops stop entries, trailing state and cooldowns on every symbol not
+        in `held`."""
+        self.stops.retain(held)
+        self.cooldowns = {k: v for k, v in self.cooldowns.items() if k.partition("|")[2] in held}
 
     def reconcile(self, internal: dict[str, int], broker: dict[str, int]) -> list[str]:
         """Broker is ground truth. Any mismatch freezes the engine."""
@@ -167,10 +201,41 @@ class RiskEngine:
             self.halted_reason = "reconciliation: " + "; ".join(mismatches)
         return mismatches
 
-    def rearm(self) -> None:
-        """Manual operator action: clears hard kill and reconciliation halt."""
+    def rearm(self, baseline: float | None = None) -> None:
+        """Manual operator action: clears the drawdown kill, the day kill and
+        the reconciliation halt, and re-bases the drawdown reference.
+
+        Without the re-base the next bar measures drawdown from the old
+        high-water mark and kills again at the same equity. `baseline` is the
+        equity to measure drawdown from; None means the next observed equity.
+        The day anchor is cleared so the day-loss limit counts from the next
+        observed equity.
+        """
+        if baseline is not None and not (math.isfinite(baseline) and baseline > 0):
+            raise ValueError(f"rearm baseline must be finite and positive, got {baseline!r}")
         self.dd_killed = False
+        self.day_killed = False
         self.halted_reason = None
+        self.hwm = baseline
+        self.day_anchor = None
+
+    def clear_halt(self) -> None:
+        """Clears only the reconciliation halt. Kills, the high-water mark and
+        the day anchor are left as they are."""
+        self.halted_reason = None
+
+    def rebase_equity(self, old: float, new: float) -> None:
+        """Operator capital change (deposit, withdrawal, deployable-cap edit):
+        scale the high-water mark and the day anchor by new / old so the
+        change is booked as neither a gain nor a loss."""
+        for name, v in (("old", old), ("new", new)):
+            if not (math.isfinite(v) and v > 0):
+                raise ValueError(f"rebase_equity {name} must be finite and positive, got {v!r}")
+        k = new / old
+        if self.hwm is not None:
+            self.hwm *= k
+        if self.day_anchor is not None:
+            self.day_anchor *= k
 
     # ---------------------------------------------------------- persistence
     def state_dict(self) -> dict:
@@ -186,8 +251,10 @@ class RiskEngine:
         }
 
     def load_state(self, d: dict) -> None:
-        self.hwm = d.get("hwm")
-        self.day_anchor = d.get("day_anchor")
+        # a non-finite reference persisted by an older build is discarded: the
+        # next readable equity takes its place
+        self.hwm = _finite_or_none(d.get("hwm"))
+        self.day_anchor = _finite_or_none(d.get("day_anchor"))
         self.day_date = d.get("day_date")
         self.day_killed = d.get("day_killed", False)
         self.dd_killed = d.get("dd_killed", False)
@@ -198,3 +265,7 @@ class RiskEngine:
 
 def positions_net(positions: dict[str, Position]) -> dict[str, int]:
     return {s: p.qty for s, p in positions.items() if p.qty != 0}
+
+
+def _finite_or_none(v: float | None) -> float | None:
+    return v if v is not None and math.isfinite(v) else None

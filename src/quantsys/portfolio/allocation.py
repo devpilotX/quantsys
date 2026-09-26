@@ -49,10 +49,14 @@ class KellyAllocator:
             f_raw = cfg.kelly_fraction * st.mean / var if var > 0 else 0.0
             f_s = float(np.clip(f_raw, 0.0, cfg.f_cap))
             if st.n_eff < cfg.ramp_obs and f_s < cfg.ramp_floor:
-                # incubation, unless evidence is already clearly negative
-                f_s = cfg.ramp_floor if f_raw > -cfg.ramp_floor else 0.0
+                # Incubation, unless evidence is already clearly negative. The
+                # test is a t-stat on the shrunk mean: f_raw is mean / var in
+                # Kelly units, so one tiny loss on a floored variance used to
+                # read as overwhelming evidence and withdraw the floor.
+                t = st.mean / math.sqrt(var / st.n_eff) if st.n_eff > 0 and var > 0 else 0.0
+                f_s = 0.0 if t <= -cfg.ramp_withdraw_t else cfg.ramp_floor
                 audits.append(AuditEvent("kelly", "incubation_floor",
-                                         f"{s}: n_eff={st.n_eff:.0f} f->{f_s:.3f}"))
+                                         f"{s}: n_eff={st.n_eff:.0f} t={t:.2f} f->{f_s:.3f}"))
             if cfg.explore_floor > 0.0 and f_s < cfg.explore_floor:
                 # forced, edge-agnostic exploration — paper-only plumbing
                 # validation, NOT withdrawn by negative evidence. The default
@@ -93,17 +97,36 @@ class VolTargeter:
         equity: float,
         audits: list[AuditEvent],
     ) -> float:
-        """target_vol / annualised proposed-book vol, clipped to config bounds."""
+        """target_vol / annualised proposed-book vol, clipped to config bounds.
+
+        A book symbol outside `cov_symbols` (fewer than cov_window + 1 bars)
+        contributes nothing to the estimated variance, so the estimate is
+        biased low: the scaler may then shrink the book but never grow it.
+        """
         cfg = self.cfg
-        if book.empty or sigma_bar is None or not cov_symbols or equity <= 0:
+        if book.empty or equity <= 0:
             return 1.0
+        if sigma_bar is None or not cov_symbols:
+            audits.append(AuditEvent("vol_target", "missing_cov",
+                                     f"no covariance history for {book.symbols()}: scaler 1.0"))
+            return 1.0
+        covered = set(cov_symbols)
+        missing = [s for s in book.symbols() if s not in covered]
         nn = book.net_notional(prices, instruments)
         w = np.array([nn.get(s, 0.0) / equity for s in cov_symbols])
         var_bar = float(w @ sigma_bar @ w)
-        if var_bar <= 1e-18:
+        if not math.isfinite(var_bar) or var_bar <= 1e-18:
+            audits.append(AuditEvent("vol_target", "degenerate_var",
+                                     f"book variance per bar {var_bar!r}: scaler 1.0"))
             return 1.0
         ann_vol = math.sqrt(var_bar * bars_per_year(self.bar_minutes))
         s = float(np.clip(cfg.annual_vol_target / ann_vol, cfg.scaler_min, cfg.scaler_max))
+        if missing:
+            detail = f"no covariance history for {missing}: scaler {s:.3f}"
+            if s > 1.0:
+                detail += " capped at 1.0"
+                s = 1.0
+            audits.append(AuditEvent("vol_target", "missing_cov", detail))
         audits.append(AuditEvent("vol_target", "scaler",
                                  f"book_vol={ann_vol:.4f} target={cfg.annual_vol_target} scaler={s:.3f}"))
         return s
