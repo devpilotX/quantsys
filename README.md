@@ -5,16 +5,26 @@ via Angel One SmartAPI. **Complete system: decision brain + event-driven
 backtester + execution layer + dashboard control plane + standalone research
 kit**, deployed in paper mode on a VPS.
 
-## Status (2026-07-02) — Forward Study 2 running on the paper VPS
+## Engine review (2026-09-26)
 
-- **Deployed**: https://quant.devpilotx.com — paper engine on live Angel One
+A review of the deployed engine found implementation defects that change what
+the paper engine does, including engine state lost at every 08:50 recycle and
+a regime model that never fitted on the 15-minute clock. They are fixed on the
+`engine-integrity` branch; `CHANGELOG.md` lists every fix and marks the ones
+that move a reported number, and `docs/FORWARD_STUDY_2.md` records what they
+mean for the running study. Deploying needs `qsdash.cli init-db` for the new
+`engine_state` table.
+
+## Status (2026-07-02): Forward Study 2 running on the paper VPS
+
+- **Deployed**: https://quant.devpilotx.com, the paper engine on live Angel One
   data. `QS_LIVE_ARMED=0`: real money stays OFF, and the 2026-06-11 credential
   leak means rotation is a hard precondition for ever arming live (GOLIVE §0).
-- **Research verdict unchanged**: the 2017–26 alpha search is CLOSED — nothing
+- **Research verdict unchanged**: the 2017–26 alpha search is CLOSED: nothing
   cleared the deployment gate (`docs/RESEARCH_CLOSEOUT.md`). What runs now is
   the closeout's one sanctioned continuation: a **pre-registered, forward-only
   paper study** (`docs/FORWARD_STUDY_2.md`, superseding Study 1 same-day after
-  a day-1 defect review — verdict appended in `docs/FORWARD_STUDY.md`) at tier
+  a day-1 defect review, verdict appended in `docs/FORWARD_STUDY.md`) at tier
   T6 (₹15cr paper float), **6 sleeves**: trend + cointegration pairs (P1/P3),
   **12L/12S market-neutral factor momentum on a self-seeded daily panel** (P2,
   primary candidate), expiry fade (P1), **down-shock event sleeve** (P4,
@@ -45,7 +55,7 @@ kit**, deployed in paper mode on a VPS.
 MarketState (bars, equity, positions)            <- built identically by backtest & live
         |
         v
-DecisionEngine.decide()  — one deterministic pass per decision bar:
+DecisionEngine.decide(): one deterministic pass per decision bar:
   1  risk pre-pass        kill switches, drawdown throttle          risk/engine.py
   2  capital tier         gates + interpolated params, hysteresis   portfolio/tiers.py
   3  regime               Gaussian HMM -> P(calm_trend/range/turb)  regime/
@@ -61,7 +71,7 @@ DecisionEngine.decide()  — one deterministic pass per decision bar:
 Decision (targets, orders, full audit trail)     -> OMS (next phase)
 ```
 
-## What is implemented and proven by tests (73 passing)
+## What is implemented and proven by tests
 
 - **Sizing math** (`portfolio/sizing.py`): `qty = E * risk_frac_eff * f_s * share /
   (stop_distance * point_value)`; multi-leg groups derive hedge legs from the
@@ -73,7 +83,7 @@ Decision (targets, orders, full audit trail)     -> OMS (next phase)
   covariance with diagonal shrinkage, clipped scaler (`allocation.py`).
 - **Capital-tier ladder** T1 (Rs 1L) -> T6 (Rs 20cr): discrete gates step with
   10% hysteresis, continuous params interpolate in log-equity
-  (`portfolio/tiers.py`). Changing only E re-sizes and re-gates the whole book —
+  (`portfolio/tiers.py`). Changing only E re-sizes and re-gates the whole book, as
   proven end-to-end in `tests/test_engine_e2e.py::test_capital_adaptation_only_E_changes`.
 - **Risk stack, every veto tested**: per-instrument / sector / correlation-cluster
   / ADV / gross / net / margin caps (all monotone-shrink, group-joint);
@@ -81,8 +91,8 @@ Decision (targets, orders, full audit trail)     -> OMS (next phase)
   (auto re-arms next session); max-drawdown kill (manual re-arm); continuous
   drawdown throttle `risk_frac * (1 - dd/dd_max)`; reconciliation halt.
 - **Regime overlay**: in-repo diagonal-Gaussian HMM (log-domain EM, seeded
-  restarts, degeneracy guards) with probability-blended risk scalers — no
-  cliff-edge regime flips — and a deterministic vol-percentile fallback ladder.
+  restarts, degeneracy guards) with probability-blended risk scalers (no
+  cliff-edge regime flips) and a deterministic vol-percentile fallback ladder.
 - **Strategies**: TSMOM+breakout trend (hysteresis entries/exits) and
   Engle-Granger/OU pairs (ADF gate, half-life band, split-half kappa stability,
   episode-frozen parameters, z-entry/exit/stop, time stop, re-arm latch).
@@ -92,7 +102,7 @@ Decision (targets, orders, full audit trail)     -> OMS (next phase)
 - **Persistence**: every stateful component serialises to JSON; engine state
   round-trips with bit-identical subsequent decisions (tested).
 
-## Key design decisions (autonomy mandate — gaps filled, with reasons)
+## Key design decisions, with reasons
 
 1. **Decision clock defaults to 5-min bars** (not 1-min). At retail fee levels
    the cost gate would veto nearly everything signal-able at 1-min; 5-min keeps
@@ -105,20 +115,20 @@ Decision (targets, orders, full audit trail)     -> OMS (next phase)
    capital, so strategies with `n_eff < ramp_obs` get a small incubation floor,
    withdrawn early if evidence is already clearly negative.
 4. **Edge stats run on virtual unit books** (f=1 sizing, proportional costs
-   only) — removes the feedback loop between allocation and measured returns,
-   and keeps flat Rs-20 fees (scale-dependent) out of a scale-free estimate.
+   only). This removes the feedback loop between allocation and measured
+   returns, and keeps flat Rs-20 fees (scale-dependent) out of a scale-free estimate.
 5. **Two distinct halt semantics**: kill (market risk; our state trusted) =>
    flatten everything at market; reconciliation halt (state NOT trusted) =>
-   freeze, no orders at all — flattening on top of a wrong book could double
+   freeze, no orders at all, because flattening on top of a wrong book could double
    the error. Broker is always ground truth.
 6. **Multi-leg trades are one Signal with legs**; every risk scaling operates
    group-jointly, so no cap can ever orphan one leg of a hedge. If any leg
    rounds to zero lots, the whole group is dropped.
 7. **Pair parameters freeze per trade episode** (no mid-trade re-estimation
    drift); after a stop-out or time-stop the pair is latched until the spread
-   revisits |z| < z_entry (prevents instant re-entry into a stuck dislocation —
+   revisits |z| < z_entry (prevents instant re-entry into a stuck dislocation;
    bug found and fixed by the time-stop test).
-8. **Cost gate applies to NEW positions only** — gating a held position would
+8. **Cost gate applies to NEW positions only.** Gating a held position would
    force-pay the exit cost the gate exists to avoid. Equity trades are gated at
    delivery STT (worst case). The gate genuinely blocks tight-stop equity
    trading at small tiers: that is the Rs-1L cost trap enforced, not a bug.
@@ -135,16 +145,18 @@ Decision (targets, orders, full audit trail)     -> OMS (next phase)
     before the core sees anything, so backtest and live traverse identical code.
 13. **Equity wipeout (E <= 0) is an immediate hard kill.**
 
-## Verified market constants (June 2026 — re-verify quarterly)
+## Verified market constants (June 2026; re-verify quarterly)
 
 - STT (Budget 2026, effective 2026-04-01): futures sell 0.05%, options sell
   0.15% of premium, equity delivery 0.1% both sides, intraday 0.025% sell.
 - NSE transaction charges: equity ~0.00307%, futures ~0.00183%, options
   ~0.0355% of premium. GST 18% on (brokerage + exchange + SEBI); SEBI Rs 10/cr;
   stamp duty buy-side (delivery 0.015%, intraday 0.003%, futures 0.002%).
-- Angel One: equity delivery Rs 0; otherwise min(Rs 20, 0.25%) per order.
+- Angel One brokerage (checked 2026-09-26): equity delivery and intraday
+  min(Rs 20, 0.1%) per order with a Rs 5 minimum; F&O Rs 20 per order.
+  Depository (DP) charges on delivery sells are not modelled.
 - Lot sizes (NSE revision effective Jan 2026): NIFTY 65, BANKNIFTY 30.
-  **Config lot sizes/ADV are warm-start fallbacks — the execution layer must
+  **Config lot sizes/ADV are warm-start fallbacks; the execution layer must
   refresh them daily from the Angel One instrument master.**
 
 ## Layout
@@ -157,14 +169,14 @@ src/quantsys/
   costs.py     Indian fee schedule + sqrt impact model
   regime/      Gaussian HMM + regime detector (fallback ladder)
   strategies/  base contract + edge stats + trend/meanrev/expiry/factor/
-               downshock/tom (+reversal, dark) — registry: drop-in alphas;
+               downshock/tom (+reversal, dark); registry: drop-in alphas;
                _dailypanel.py = shared self-seeding daily-panel base
   portfolio/   TargetBook, Kelly, vol targeting, tier ladder, sizing engine
   risk/        exposure rules, kill switches, stops, reconciliation
   engine/      DecisionEngine orchestrator + order diffing
   persistence.py  atomic JSON state snapshots
 config/base.yaml   baseline config + sample NSE universe
-tests/             73 tests incl. cap-invariant and kill-switch e2e proofs
+tests/             engine suite incl. cap-invariant and kill-switch e2e proofs
 ```
 
 ## Running
@@ -196,43 +208,44 @@ events to the browser in real time.
 
 ## Backtester, execution & options (built 2026-06-12)
 
-- **`quantsys/backtest/`** — event-driven backtester driving the real
+- **`quantsys/backtest/`**: event-driven backtester driving the real
   `decide()`; SimBroker fills with the CostModel; walk-forward IS-vs-OOS,
   deflated Sharpe, Monte-Carlo, sensitivity sweep; `runstudy` CLI persists to
-  `backtest_runs`. **This is the go-live gate** — synthetic data correctly
+  `backtest_runs`. **This is the go-live gate**: synthetic data correctly
   yields a CLOSED verdict; real OOS edge after costs is required to open it.
-- **`quantsys/execution/`** — `Broker` interface + Angel One SmartAPI adapter
+- **`quantsys/execution/`**: `Broker` interface + Angel One SmartAPI adapter
   (TOTP session, instrument master, idempotent rate-limited OMS, MPP-agnostic
   fills), WS tick→bar aggregation, reconciliation (broker=truth → freeze).
   Built and unit-tested with a mock transport; **not yet run against the live
   broker** (that's the paper-on-VPS step).
-- **`quantsys/options/`** + `strategies/voloptions.py` — self-contained
+- **`quantsys/options/`** + `strategies/voloptions.py`: self-contained
   Black-Scholes + defined-risk vertical-spread vol sleeve (IV-vs-RV), a
   registry drop-in, **disabled by default** pending a live option-chain feed.
 - **Two-lock go-live gate**: dashboard operator chain + engine `livegate`
   (adapter + `QS_LIVE_ARMED` + passing real backtest). See `docs/GOLIVE.md`,
   `docs/DECISIONS.md` (#17–26), and `deploy/scripts/preflight.py`.
 
-Test counts: **191 engine tests**, **60 dashboard backend tests** (1 env-skip),
-all green (2026-07-02, post-Study-2).
+Test counts (2026-09-26): 426 engine tests and 152 dashboard backend tests
+(1 environment skip), all green; CI runs the engine suite on Python
+3.11 to 3.14.
 
-## Research tooling (standalone) — `quantsys/research/`
+## Research tooling (standalone): `quantsys/research/`
 
 Self-contained, engine-isolated research kit built during the alpha search (final
-verdict: no deployable edge — see `docs/RESEARCH_CLOSEOUT.md`). It imports without
+verdict: no deployable edge, see `docs/RESEARCH_CLOSEOUT.md`). It imports without
 the live engine/broker and is the recommended way to run any future **forward-only,
 pre-registered** cross-sectional study. Free, point-in-time, survivorship-bias-free
-NSE data — no paid vendor, no VPS needed.
+NSE data: no paid vendor, no VPS needed.
 
-- `bhavcopy.py` — full NSE **cash** daily panel from the public archive CDN (both the
+- `bhavcopy.py`: full NSE **cash** daily panel from the public archive CDN (both the
   legacy `cm…bhav` and 2024-07+ UDiFF formats), on-disk cached. Corporate actions are
   handled via NSE's ±20% price-band rule (intraday return on split/bonus days).
-- `fno.py` — NSE **F&O** daily: BANKNIFTY index-option OI → PCR, near-month futures,
+- `fno.py`: NSE **F&O** daily: BANKNIFTY index-option OI → PCR, near-month futures,
   and **point-in-time single-stock-futures membership**.
-- `factors.py` + `xs_backtest.py` — price/volume cross-sectional factors (momentum,
+- `factors.py` + `xs_backtest.py`: price/volume cross-sectional factors (momentum,
   low-vol, reversal, illiquidity) and a monthly beta-neutral L/S backtester that
   reuses the engine's real `CostModel` and metrics.
-- `validation.py` — **PBO** (Probability of Backtest Overfitting, CSCV) and **purged
+- `validation.py`: **PBO** (Probability of Backtest Overfitting, CSCV) and **purged
   & embargoed K-fold CV** (Lopez de Prado); pairs with `backtest/metrics.py`'s
   deflated Sharpe + Monte-Carlo bootstrap.
 
@@ -256,7 +269,7 @@ and validators are pure and unit-tested (`tests/test_research.py`,
 
 1. **Rotate the Angel One credentials** (leaked 2026-06-11; still the hard
    blocker for any live arming) and fill Telegram alert creds in `deploy/.env`.
-2. **Forward Study 2 first read: 2027-01-05** (`docs/FORWARD_STUDY_2.md`) —
+2. **Forward Study 2 first read: 2027-01-05** (`docs/FORWARD_STUDY_2.md`),
    observational only; the livegate criteria stand unchanged.
 3. **voloptions sleeve** stays disabled until a live option-chain feed +
    OptionUniverseManager exist.

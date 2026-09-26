@@ -102,3 +102,66 @@ Unchanged from Study 1: 08:50 IST engine recycle (now cash-safe), 09:55 self-che
 20:30 down-shock tracker (control), weekly backtest refresh — ★ moved to Saturday
 11:00 IST with socket timeouts (the Sunday-02:30 run hung on the broker's maintenance
 window, root-caused 2026-07-02).
+
+## Implementation review (appended 2026-09-26, per the append-only rule)
+
+A code review of the engine as deployed for this study found implementation
+defects, not results: no forward result of this study was read for it. The
+ones that change what the paper engine does:
+
+1. **Engine state did not survive the 08:50 recycle.** The runner rebuilt the
+   engine from nothing every morning, so:
+   - a down-shock hold lasted one session, not the registered 10;
+   - the factor sleeve rebalanced at every restart, not every 21 sessions;
+   - the max-drawdown kill latch cleared each morning and drawdown was
+     measured from that morning's equity, not from the peak;
+   - edge statistics, the regime model and the tier state were re-derived
+     from a replay of about 36 sessions each day.
+2. **Warm-up was sized for 5-minute bars.** On the 15-minute clock it loaded
+   about 900 bars. The regime HMM needs 1,500 to fit at all, so the study ran
+   the fallback vol-percentile classifier throughout, and the learned regime
+   tilt learned on its labels. The pairs sleeve never had its lookback and
+   never traded.
+3. **The panel sleeves ranked names outside the tier's view.** A top name
+   outside the 40-name view took a basket slot and its signal was dropped, so
+   the factor basket was not always dollar-neutral; down-shock slots could go
+   to names that could not be traded.
+4. **The down-shock sleeve was not the frozen research rule.** Sigma used
+   ddof=0; de-clustering counted 30 calendar days from the last entry (about
+   21 sessions) instead of 30 sessions from the last qualifying shock; events
+   that were not entered did not start a cluster; a missing volume print let
+   a shock through on z alone.
+5. **The risk stack did less than registered.** The vol targeter undid the
+   drawdown throttle whenever its scaler was not at a clip; min-lot promotion
+   could take a futures lot past a cap and past the throttle; caps checked on
+   netted groups could be breached once an offsetting group was dropped; the
+   anti-churn band held positions above a cap; the Kelly incubation floor was
+   withdrawn on the first negative observation.
+6. **Costs were understated.** Equity delivery brokerage was modelled as free
+   (Angel One has charged min(Rs 20, 0.1%), minimum Rs 5, since 2024-11-01);
+   F&O brokerage as min(Rs 20, 0.25%) instead of a flat Rs 20 per order;
+   kill-switch exits paid no market impact.
+7. **Paper filled at stale prices.** An order for a symbol that did not print
+   in the bucket filled at its previous close.
+8. **A restart could flatten the book.** The warm-up replay marked the carried
+   book at historical prices, so a replayed peak became the drawdown
+   reference and a replayed slide could latch the kill before the first live
+   bar.
+
+What the recorded series measures: the implementation as deployed. For the
+down-shock and factor sleeves and for the risk stack, that is not the rule
+this document registers, so the 2027-01-05 read would evaluate a different
+system from the registered one.
+
+The fixes are on the `engine-integrity` branch. Deploying them changes fills
+and order flow, which under this document's rules means a new registration.
+The owner's options, as with the Study 1 supersession:
+
+- deploy and register Forward Study 3 superseding this one, on the same
+  grounds as before (implementation defects, not results). This is clean only
+  if no evaluation read of this study has been made;
+- or keep this study running as deployed to its first read, and deploy the
+  fixes afterwards as Study 3.
+
+Either way, the equity series stays continuous and labelled, as it did at the
+Study 1 supersession.
