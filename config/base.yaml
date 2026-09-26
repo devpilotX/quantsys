@@ -95,8 +95,10 @@ regime:
       strategy_weights: {trend: 0.6, meanrev: 0.4, factor: 0.8, expiry: 0.7,
                          downshock: 1.2, reversal: 0.6, tom: 0.7}
 
-# Costs: verified June 2026 — Budget 2026 STT (futures 0.05%, options 0.15%)
-# effective 2026-04-01; Angel One Rs 20/0.25% per order; re-verify quarterly.
+# Costs: STT verified June 2026 (Budget 2026: futures 0.05%, options 0.15%,
+# effective 2026-04-01). Angel One brokerage checked 2026-09-26: equity
+# min(Rs 20, 0.1%) with a Rs 5 minimum, delivery included; F&O Rs 20 per
+# order. The full schedule is CostConfig in schema.py. Re-verify quarterly.
 costs:
   brokerage_flat: 20.0
 

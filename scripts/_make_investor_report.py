@@ -230,8 +230,9 @@ def build() -> None:
 
     # ---------------------------------------------------------------- costs
     h(doc, "6. Transaction-cost realism")
-    p(doc, "Every paper fill is priced by the full June-2026 Indian fee schedule "
-           "(re-verified quarterly): brokerage (₹20/0.25% per order; delivery ₹0), "
+    p(doc, "Every paper fill is priced by the full Indian fee schedule "
+           "(re-verified quarterly): Angel One brokerage (equity ₹20 or 0.1% per "
+           "order with a ₹5 minimum, delivery included; F&O ₹20 per order), "
            "STT (Budget 2026 rates: futures sell 0.05%, delivery 0.1% both sides), "
            "exchange transaction charges, SEBI fee, stamp duty, 18% GST, plus a "
            "slippage haircut and a square-root market-impact term. The research "

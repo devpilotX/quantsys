@@ -193,10 +193,17 @@ def _DEFAULT_LADDER() -> list[TierConfig]:
 
 
 class CostConfig(BaseModel):
-    # Verified June 2026 (Budget 2026 STT effective 2026-04-01). Re-verify quarterly.
-    brokerage_flat: float = 20.0
-    brokerage_pct: float = 0.0025
-    brokerage_delivery_flat: float = 0.0
+    # STT verified June 2026 (Budget 2026, effective 2026-04-01). Re-verify quarterly.
+    # Angel One brokerage, checked 2026-09-26 against angelone.in "Brokerage
+    # charges": equity delivery and intraday pay min(Rs 20, 0.1% of the order)
+    # with a Rs 5 minimum (delivery has been charged since 2024-11-01; the
+    # model had it free), and F&O pays Rs 20 per executed order.
+    brokerage_flat: float = 20.0      # equity cap per order; the F&O fee per order
+    brokerage_pct: float = 0.001
+    brokerage_min: float = 5.0
+    # A fixed fee per delivery order instead of the schedule above. None uses
+    # the schedule; 0.0 reproduces the old free-delivery assumption.
+    brokerage_delivery_flat: float | None = None
     stt_future_sell: float = 0.0005
     stt_option_sell: float = 0.0015
     stt_delivery: float = 0.001
