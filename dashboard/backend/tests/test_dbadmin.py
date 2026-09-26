@@ -7,6 +7,7 @@ import pytest
 from qsdash.config import settings
 from sqlalchemy import create_engine
 from sqlalchemy.exc import OperationalError
+from tests.conftest import on_postgres
 
 
 def test_tables_never_lists_credential_tables(authed):
@@ -77,6 +78,7 @@ def test_query_still_refuses_writes(authed, sql):
     assert authed.post("/api/db/query", json={"sql": sql}).status_code == 400
 
 
+@pytest.mark.skipif(on_postgres(), reason="SQLite pragma; see the Postgres variant")
 def test_read_only_scope_blocks_writes_and_restores_the_connection():
     """PRAGMA query_only is per connection; a pooled connection left
     read-only would break every later write that happened to reuse it."""
@@ -87,6 +89,23 @@ def test_read_only_scope_blocks_writes_and_restores_the_connection():
         with pytest.raises(OperationalError), _read_only(conn):
             conn.exec_driver_sql("CREATE TABLE _console_probe (x INTEGER)")
         assert conn.exec_driver_sql("PRAGMA query_only").scalar() == 0
+
+
+@pytest.mark.skipif(not on_postgres(), reason="needs Postgres")
+def test_read_only_scope_on_postgres_refuses_writes_then_ends():
+    """SET TRANSACTION READ ONLY and SET LOCAL statement_timeout last only
+    for the console's transaction; the connection writes again after it."""
+    from qsdash.api.dbadmin import STATEMENT_TIMEOUT, _read_only
+    from qsdash.db import engine
+    from sqlalchemy.exc import DBAPIError
+
+    with engine.connect() as conn:
+        with pytest.raises(DBAPIError, match="read-only transaction"), _read_only(conn):
+            assert conn.exec_driver_sql("SHOW statement_timeout").scalar() == STATEMENT_TIMEOUT
+            conn.exec_driver_sql("CREATE TABLE _console_probe (x INTEGER)")
+        conn.exec_driver_sql("CREATE TEMP TABLE _console_probe (x INTEGER)")
+        assert conn.exec_driver_sql("SHOW transaction_read_only").scalar() == "off"
+        conn.rollback()
 
 
 def test_query_runs_on_the_console_engine_when_configured(authed, monkeypatch, tmp_path):

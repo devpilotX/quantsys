@@ -1,6 +1,8 @@
 """Backend tests run on SQLite (file-per-session) so they need no live
-Postgres; the NOTIFY publisher no-ops off-postgres by design. Environment is
-pinned BEFORE any qsdash import."""
+Postgres; the NOTIFY publisher no-ops off-postgres by design. Set
+QSDASH_TEST_DATABASE_URL to run them against a Postgres instead (CI does,
+on the production image); its tables are dropped and recreated first.
+Environment is pinned BEFORE any qsdash import."""
 
 from __future__ import annotations
 
@@ -13,7 +15,8 @@ _DB = _TMP / "test.db"
 if _DB.exists():
     _DB.unlink()
 
-os.environ["DATABASE_URL"] = f"sqlite:///{_DB.as_posix()}"
+os.environ["DATABASE_URL"] = (os.environ.get("QSDASH_TEST_DATABASE_URL")
+                              or f"sqlite:///{_DB.as_posix()}")
 os.environ["COOKIE_SECURE"] = "false"
 # 32+ characters: livegate and preflight refuse a shorter postback secret
 os.environ["ANGEL_WEBHOOK_SECRET"] = "test-webhook-secret-0123456789abcdef"
@@ -35,8 +38,17 @@ USERNAME = "op"
 PASSWORD = "correct-horse-battery-staple"
 
 
+def on_postgres() -> bool:
+    return engine.dialect.name == "postgresql"
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _schema():
+    # A Postgres keeps rows, and possibly a migration stamp, from an earlier
+    # run; the suite builds its schema from the models alone.
+    Base.metadata.drop_all(engine)
+    with engine.begin() as c:
+        c.exec_driver_sql("DROP TABLE IF EXISTS alembic_version")
     Base.metadata.create_all(engine)
     db = SessionLocal()
     db.add(User(username=USERNAME, password_hash=hash_password(PASSWORD),

@@ -86,6 +86,10 @@ xfail_strict = true
 filterwarnings = [
     "error::DeprecationWarning:quantsys.*",
     "error::FutureWarning:quantsys.*",
+    # smartapi-python is pinned (see the broker extra) and sets TLS options
+    # that Python deprecates when it builds its SSL context. Nothing to fix
+    # on our side; our own deprecations above still fail the run.
+    "ignore:ssl.OP_NO_SSL:DeprecationWarning:SmartApi",
 ]
 markers = [
     "slow: deselect with -m 'not slow'",

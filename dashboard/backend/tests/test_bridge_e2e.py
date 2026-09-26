@@ -68,9 +68,38 @@ def test_heartbeat_written(ran_runner, db):
     assert es.detail.get("data_source") == "synthetic"
 
 
+def _hold_a_position(runner, db) -> None:
+    """Open one equity position through the paper broker, so the kill below
+    always has something to flatten. Whether the synthetic run ends holding
+    anything depends on the strategies, and this test used to skip when it
+    did not."""
+    from quantsys.core.types import (
+        Decision,
+        ExecutionStyle,
+        InstrumentKind,
+        OrderIntent,
+        RegimeState,
+        Urgency,
+    )
+
+    prices = runner.current_prices()
+    sym = next(s for s, inst in sorted(runner.engine.instruments.items())
+               if inst.kind == InstrumentKind.EQUITY and prices.get(s, 0.0) > 0)
+    last = db.query(DecisionRow).order_by(DecisionRow.id.desc()).first()
+    order = OrderIntent(sym, 10, ExecutionStyle.MARKET_SINGLE, Urgency.NORMAL,
+                        "trend", "test setup")
+    decision = Decision(ts=last.ts, equity=runner.broker.equity(prices),
+                        tier_name=last.tier_name,
+                        regime=RegimeState("calm_range", {"calm_range": 1.0}, 1.0, {}),
+                        signals=(), kelly={}, vol_scaler=1.0, risk_frac_eff=0.0,
+                        targets=(), orders=(order,))
+    runner.broker.execute(decision, last.id, prices, last.ts)
+    assert runner.broker.positions[sym].qty == 10
+
+
 def test_command_kill_flattens(ran_runner, db):
     if not ran_runner.broker.positions:
-        pytest.skip("no open positions at end of synthetic run")
+        _hold_a_position(ran_runner, db)
     db.add(Command(created_by="test", kind="kill", payload={}))
     db.commit()
     ran_runner.commands.poll()
