@@ -2,7 +2,9 @@
 FROM python:3.12-slim
 
 WORKDIR /app
-ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+# QSDASH_MIGRATIONS_DIR: the installed package does not ship the Alembic
+# scripts; `python -m qsdash.cli init-db` reads them from the copy below.
+ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 QSDASH_MIGRATIONS_DIR=/app/backend
 
 # engine first (its deps are the heavy layer and change rarely)
 COPY pyproject.toml README.md /app/engine/

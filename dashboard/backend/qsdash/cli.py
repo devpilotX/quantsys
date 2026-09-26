@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import os
 import sys
 from pathlib import Path
 
@@ -19,12 +20,26 @@ from qsdash.security import hash_password, new_totp_secret, totp_uri
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 
+def migrations_dir() -> Path:
+    """The directory holding alembic.ini and alembic/. A source checkout has
+    them next to the package. An installed package does not ship them, and
+    BACKEND_DIR is then site-packages, where alembic/ is the Alembic library
+    itself, so the Docker image names the copy it keeps in
+    QSDASH_MIGRATIONS_DIR."""
+    for d in (os.environ.get("QSDASH_MIGRATIONS_DIR"), BACKEND_DIR):
+        if d and (Path(d) / "alembic.ini").is_file() and (Path(d) / "alembic" / "env.py").is_file():
+            return Path(d)
+    raise SystemExit("migrations not found: set QSDASH_MIGRATIONS_DIR to the directory "
+                     "holding alembic.ini (dashboard/backend in a checkout)")
+
+
 def init_db() -> None:
     from alembic import command
     from alembic.config import Config
 
-    cfg = Config(str(BACKEND_DIR / "alembic.ini"))
-    cfg.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
+    where = migrations_dir()
+    cfg = Config(str(where / "alembic.ini"))
+    cfg.set_main_option("script_location", str(where / "alembic"))
     command.upgrade(cfg, "head")
     print("migrations applied")
     seed_defaults()

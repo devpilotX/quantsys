@@ -149,6 +149,17 @@ def check_webhook_secret() -> None:
               f"ANGEL_WEBHOOK_SECRET {problem}; the live gate will refuse to arm")
 
 
+def _migrations_head() -> str | None:
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+    from qsdash.cli import migrations_dir
+
+    where = migrations_dir()
+    cfg = Config(str(where / "alembic.ini"))
+    cfg.set_main_option("script_location", str(where / "alembic"))
+    return ScriptDirectory.from_config(cfg).get_current_head()
+
+
 def check_db() -> None:
     try:
         sys.path.insert(0, os.path.join(
@@ -162,7 +173,17 @@ def check_db() -> None:
             insp = inspect(engine)
             tables = set(insp.get_table_names())
             if "decisions" not in tables or "users" not in tables:
-                check(FAIL, "DB schema", "core tables missing — run alembic upgrade head")
+                check(FAIL, "DB schema",
+                      "core tables missing: run python -m qsdash.cli init-db")
+                return
+            current = (c.execute(text("SELECT version_num FROM alembic_version")).scalar()
+                       if "alembic_version" in tables else None)
+            head = _migrations_head()
+            if current != head:
+                # a schema behind the code fails at the first query that needs
+                # the new table or column, not here
+                check(FAIL, "DB migrations", f"database at {current or 'no revision'}, "
+                      f"code at {head}: run python -m qsdash.cli init-db")
                 return
             n_users = c.execute(text("SELECT count(*) FROM users")).scalar()
             if n_users == 0:
