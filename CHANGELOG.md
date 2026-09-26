@@ -133,14 +133,85 @@ forward study is appended to `docs/FORWARD_STUDY_2.md`.
   the paper engine.
 - The feed's first token refresh is no longer skipped on a host up for less
   than five minutes (this also made two feed tests fail on fresh CI runners).
+- **[numbers]** Configured NSE equities now resolve to their NSE listing. In
+  Angel One's instrument master the bare-name rows (`SBIN`) are the BSE
+  listings and NSE lists the same names by series (`SBIN-EQ`). Matching on
+  the bare name meant paper data, warm-up, backtest history and would-be live
+  orders all used BSE. `AngelOneBroker.resolve()` maps each configured symbol
+  to the row on its configured exchange and keeps the config symbol as the
+  engine symbol; a name listed only on another exchange is left unresolved
+  and never traded.
+
+### Fixed: deploy
+
+- `python -m qsdash.cli init-db` failed inside the production image: the
+  installed package looked for the Alembic scripts in site-packages and found
+  the Alembic library instead. The image sets `QSDASH_MIGRATIONS_DIR` to the
+  copy of `dashboard/backend` it carries; a checkout works as before.
+- `deploy/scripts/preflight.py` fails when the database is behind the
+  migration head, so a missed `init-db` no longer surfaces only at the first
+  engine-state save after an update.
+- The API image installs the engine against `constraints/linux-py3.12.txt`,
+  so its numerical stack no longer re-resolves on every rebuild.
+- `.dockerignore` files keep `.git`, env files and data out of the API build
+  context, and a host `node_modules` or `.next` out of the frontend image.
+
+### Fixed: sizing
+
+- **[numbers]** A multi-leg group whose hedge ratio drifts more than
+  `sizing.max_hedge_ratio_drift` (default 0.10) through lot rounding is
+  dropped instead of sent. Legs round to whole lots on their own, so a pair
+  intended at 7.0 / 2.4 lots went out as 7 / 2, 17% under-hedged. The drift
+  is measured on notional, written to the audit trail for every multi-leg
+  group, and re-checked after a cap cut re-rounds a group.
+
+### Fixed: frontend
+
+- `useLiveTopic` assigned a ref during render, which the React hooks lint
+  rule reports as an error; it now uses `useEffectEvent`. An unused import on
+  the risk page is gone.
 
 ### Added
 
 - CI jobs: frontend lint, type check and build; Alembic migrations checked
   against the models.
+- CI jobs `postgres` (init-db on the TimescaleDB pg16 image production runs,
+  a schema diff against the models, then the dashboard suite on it), `images`
+  (compose validated for every profile, both images built, the first-deploy
+  steps from `docs/DEPLOY.md` run until `/api/health` and `/login` answer)
+  and `shell` (actionlint, shellcheck on the deploy and CI scripts).
+- `scripts/check_migrations.py`: compares a migrated database with the
+  models and fails on a table, column, type or nullability difference.
+  Differences it cannot judge, such as an index TimescaleDB adds, are
+  reported without failing.
+- The dashboard suite runs on Postgres when `QSDASH_TEST_DATABASE_URL` is
+  set. `test_command_kill_flattens` opens a position itself instead of
+  skipping whenever the synthetic run ended flat, which was always, so the
+  kill, flatten and re-arm path now runs.
+- `constraints/linux-py{3.11,3.12,3.13,3.14}.txt` and
+  `scripts/ci_install.sh`: CI installs the resolved set on push and pull
+  request and installs unpinned on the weekly schedule.
+- Property tests for the scaling primitives, the tier ladder and the cost
+  model, and a property that no final two-leg target drifts past the hedge
+  ratio tolerance.
 - Migration `d2e3f4a50002` (`engine_state`).
 - Settings `ANGEL_WEBHOOK_ALLOW_UNSIGNED` (dev only) and
   `CONSOLE_DATABASE_URL`; operator command `rebaseline_live_book`.
+
+### Changed
+
+- GitHub Actions on current majors: `checkout`, `setup-python`,
+  `upload-artifact` and `setup-node` v7, `gitleaks-action` v3 (v2 runs on
+  Node 20, which GitHub is retiring on its runners). The dependency audit
+  also covers the dashboard backend and the frontend lockfile, still
+  non-blocking.
+- Dependabot updates `react` with `react-dom` and `next` with
+  `eslint-config-next` as one pull request each, so a pair cannot drift
+  apart.
+- The dashboard's dev extra adds `httpx2`, which Starlette's TestClient now
+  expects; the pinned SmartAPI SDK's deprecated TLS flags are filtered in the
+  engine's pytest config, and the engine's own deprecations still fail the
+  run.
 
 ### Removed
 
