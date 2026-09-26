@@ -1012,7 +1012,13 @@ def main() -> None:
     args = ap.parse_args()
 
     mode = "live" if args.live else "paper"
-    runner = LiveRunner(args.config, mode=mode, paper_capital=args.capital)
+    try:
+        runner = LiveRunner(args.config, mode=mode, paper_capital=args.capital)
+    except BrokerError as e:
+        # missing or rejected credentials: one line, not a traceback; the
+        # non-zero exit still lets a supervisor restart the unit
+        log.error("cannot start the %s runner: %s", mode, e)
+        raise SystemExit(2) from None
 
     # start the websocket feed
     adapter = runner.broker_adapter

@@ -115,7 +115,12 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     broker = AngelOneBroker()
-    broker.connect()
+    try:
+        broker.connect()
+    except BrokerError as e:
+        # missing or rejected credentials: one line, not a traceback
+        log.error("cannot connect to Angel One: %s (see .env.example)", e)
+        raise SystemExit(2) from None
     _ensure_tokens(broker, cfg)
 
     log.info("fetching %d symbols %s [%s .. %s] -> %s",
