@@ -70,9 +70,11 @@ def backtest_gate(db: Session) -> GateStatus:
         sharpe = m.get("sharpe_oos")
         deflated = m.get("sharpe_deflated")
         p_neg = (m.get("monte_carlo") or {}).get("p_sharpe_negative")
+        # every threshold must be present and met: a run missing a metric
+        # (say, one stored without its Monte-Carlo block) proves nothing
         if (sharpe is not None and sharpe >= MIN_OOS_SHARPE
                 and deflated is not None and deflated >= MIN_DEFLATED
-                and (p_neg is None or p_neg <= MAX_P_SHARPE_NEG)):
+                and p_neg is not None and p_neg <= MAX_P_SHARPE_NEG):
             return GateStatus(True, [], passing_run_id=r.id)
     return GateStatus(False, [
         f"newest real backtest does not clear the robustness bar "
