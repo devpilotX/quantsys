@@ -25,7 +25,7 @@ const COLUMNS: QsColumn<DecisionSummary>[] = [
     tone: (d) => (d.kill_reason || d.halted ? "negative" : "muted") },
 ];
 
-function line(text: string, color: string = colors.text) {
+function Line({ text, color = colors.text }: { text: string; color?: string }) {
   return <Box paddingX={1}><Text fg={color} wrapText>{text}</Text></Box>;
 }
 
@@ -39,7 +39,7 @@ function asText(value: unknown): string {
 function DecisionView({ id, width }: { id: number; width: number }) {
   const detail = useQsResource<DecisionDetail>(`/decisions/${id}`, 300_000);
   const d = detail.data;
-  if (!d) return line(detail.error ?? "Loading decision...", detail.error ? colors.warning : colors.textDim);
+  if (!d) return <Line text={detail.error ?? "Loading decision..."} color={detail.error ? colors.warning : colors.textDim} />;
   const kelly = Object.entries(d.kelly ?? {}).sort(([, a], [, b]) => b - a);
   return (
     <ScrollBox scrollY focusable={false} flexDirection="column" flexGrow={1} width={width}>
@@ -51,25 +51,25 @@ function DecisionView({ id, width }: { id: number; width: number }) {
         ...regimeMix(d.regime_probs).map((r) => ({ id: `p-${r.label}`, label: r.label, value: formatPct(r.p, 1) })),
       ]} />
       {kelly.length ? <Section title="Kelly allocation" /> : null}
-      {kelly.map(([name, f]) => line(`${name.padEnd(12)}${formatPct(f, 2).padStart(8)}`))}
+      {kelly.map(([name, f]) => <Line key={name} text={`${name.padEnd(12)}${formatPct(f, 2).padStart(8)}`} />)}
       <Section title={`Signals (${d.signals?.length ?? 0})`} />
       {(d.signals ?? []).map((s, i) => (
-        <Box key={`s${i}`}>{line(`${asText(s.strategy).padEnd(10)} ${asText(s.symbol).padEnd(15)} dir ${asText(s.direction)}  `
-          + `edge ${asText(s.expected_edge_R)}R  stop ${asText(s.stop_distance)}`)}</Box>
+        <Line key={`s${i}`} text={`${asText(s.strategy).padEnd(10)} ${asText(s.symbol).padEnd(15)} dir ${asText(s.direction)}  `
+          + `edge ${asText(s.expected_edge_R)}R  stop ${asText(s.stop_distance)}`} />
       ))}
       <Section title={`Targets (${d.targets?.length ?? 0})`} />
       {(d.targets ?? []).map((t, i) => (
-        <Box key={`t${i}`}>{line(`${asText(t.symbol).padEnd(15)} ${asText(t.qty).padStart(8)}  ${asText(t.strategy)}`)}</Box>
+        <Line key={`t${i}`} text={`${asText(t.symbol).padEnd(15)} ${asText(t.qty).padStart(8)}  ${asText(t.strategy)}`} />
       ))}
       <Section title={`Orders (${d.orders?.length ?? 0})`} />
       {(d.orders ?? []).map((o, i) => (
-        <Box key={`o${i}`}>{line(`${asText(o.symbol).padEnd(15)} ${asText(o.qty_delta).padStart(8)}  `
-          + `${asText(o.style)}  ${asText(o.urgency)}  ${asText(o.reason)}`)}</Box>
+        <Line key={`o${i}`} text={`${asText(o.symbol).padEnd(15)} ${asText(o.qty_delta).padStart(8)}  `
+          + `${asText(o.style)}  ${asText(o.urgency)}  ${asText(o.reason)}`} />
       ))}
       <Section title={`Audit trail (${d.audit?.length ?? 0})`} />
-      {line(auditByStage(d.audit).map((s) => `${s.stage} ${s.count}`).join("   "), colors.textDim)}
+      <Line text={auditByStage(d.audit).map((s) => `${s.stage} ${s.count}`).join("   ")} color={colors.textDim} />
       {(d.audit ?? []).map((a, i) => (
-        <Box key={`a${i}`}>{line(`${a.stage.padEnd(14)} ${describeAudit(a)}`, colors.textDim)}</Box>
+        <Line key={`a${i}`} text={`${a.stage.padEnd(20)} ${describeAudit(a)}`} color={colors.textDim} />
       ))}
     </ScrollBox>
   );

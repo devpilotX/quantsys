@@ -1,0 +1,171 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1070" height="706" viewBox="0 0 1070 706" role="img" aria-label="quantsys Decisions">
+<rect width="1070" height="706" rx="8" fill="#000000"/>
+<rect width="1070" height="30" rx="8" fill="#0a0a0a"/><rect y="22" width="1070" height="8" fill="#0a0a0a"/>
+<circle cx="20" cy="15" r="5.5" fill="#ff5f57"/>
+<circle cx="38" cy="15" r="5.5" fill="#febc2e"/>
+<circle cx="56" cy="15" r="5.5" fill="#28c840"/>
+<text x="535" y="19.5" fill="#7b7b7b" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" text-anchor="middle">QSD  quantsys Decisions</text>
+<g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace" font-size="14" xml:space="preserve">
+<rect x="14.0" y="44" width="50.4" height="18" fill="#3d3d3d"/>
+<text x="14.0" y="57.5" fill="#ffffff" font-weight="700" textLength="8.4" lengthAdjust="spacingAndGlyphs">←</text>
+<text x="30.8" y="57.5" fill="#ffffff" font-weight="700" textLength="33.6" lengthAdjust="spacingAndGlyphs">Back</text>
+<text x="72.8" y="57.5" fill="#ffffff" font-weight="700" textLength="67.2" lengthAdjust="spacingAndGlyphs">Decision</text>
+<text x="148.4" y="57.5" fill="#ffffff" font-weight="700" textLength="33.6" lengthAdjust="spacingAndGlyphs">#812</text>
+<text x="198.8" y="57.5" fill="#ffffff" font-weight="700" textLength="42.0" lengthAdjust="spacingAndGlyphs">11:00</text>
+<text x="22.4" y="75.5" fill="#7b7b7b" textLength="50.4" lengthAdjust="spacingAndGlyphs">Equity</text>
+<text x="131.6" y="75.5" fill="#cccccc" font-weight="700" textLength="58.8" lengthAdjust="spacingAndGlyphs">₹10.23L</text>
+<text x="282.8" y="75.5" fill="#7b7b7b" textLength="33.6" lengthAdjust="spacingAndGlyphs">Tier</text>
+<text x="392.0" y="75.5" fill="#cccccc" font-weight="700" textLength="16.8" lengthAdjust="spacingAndGlyphs">T2</text>
+<text x="543.2" y="75.5" fill="#7b7b7b" textLength="33.6" lengthAdjust="spacingAndGlyphs">Risk</text>
+<text x="585.2" y="75.5" fill="#7b7b7b" textLength="8.4" lengthAdjust="spacingAndGlyphs">/</text>
+<text x="602.0" y="75.5" fill="#7b7b7b" textLength="42.0" lengthAdjust="spacingAndGlyphs">trade</text>
+<text x="652.4" y="75.5" fill="#cccccc" font-weight="700" textLength="50.4" lengthAdjust="spacingAndGlyphs">0.580%</text>
+<text x="803.6" y="75.5" fill="#7b7b7b" textLength="25.2" lengthAdjust="spacingAndGlyphs">Vol</text>
+<text x="837.2" y="75.5" fill="#7b7b7b" textLength="50.4" lengthAdjust="spacingAndGlyphs">scaler</text>
+<text x="912.8" y="75.5" fill="#cccccc" font-weight="700" textLength="33.6" lengthAdjust="spacingAndGlyphs">0.92</text>
+<text x="22.4" y="93.5" fill="#7b7b7b" textLength="84.0" lengthAdjust="spacingAndGlyphs">calm_trend</text>
+<text x="131.6" y="93.5" fill="#cccccc" font-weight="700" textLength="42.0" lengthAdjust="spacingAndGlyphs">71.0%</text>
+<text x="282.8" y="93.5" fill="#7b7b7b" textLength="84.0" lengthAdjust="spacingAndGlyphs">calm_range</text>
+<text x="392.0" y="93.5" fill="#cccccc" font-weight="700" textLength="42.0" lengthAdjust="spacingAndGlyphs">22.0%</text>
+<text x="543.2" y="93.5" fill="#7b7b7b" textLength="75.6" lengthAdjust="spacingAndGlyphs">turbulent</text>
+<text x="652.4" y="93.5" fill="#cccccc" font-weight="700" textLength="33.6" lengthAdjust="spacingAndGlyphs">7.0%</text>
+<text x="22.4" y="129.5" fill="#ffffff" font-weight="700" textLength="42.0" lengthAdjust="spacingAndGlyphs">KELLY</text>
+<text x="72.8" y="129.5" fill="#ffffff" font-weight="700" textLength="84.0" lengthAdjust="spacingAndGlyphs">ALLOCATION</text>
+<text x="22.4" y="147.5" fill="#cccccc" textLength="42.0" lengthAdjust="spacingAndGlyphs">trend</text>
+<text x="140.0" y="147.5" fill="#cccccc" textLength="50.4" lengthAdjust="spacingAndGlyphs">14.00%</text>
+<text x="22.4" y="165.5" fill="#cccccc" textLength="50.4" lengthAdjust="spacingAndGlyphs">factor</text>
+<text x="148.4" y="165.5" fill="#cccccc" textLength="42.0" lengthAdjust="spacingAndGlyphs">9.00%</text>
+<text x="22.4" y="183.5" fill="#cccccc" textLength="25.2" lengthAdjust="spacingAndGlyphs">tom</text>
+<text x="148.4" y="183.5" fill="#cccccc" textLength="42.0" lengthAdjust="spacingAndGlyphs">8.00%</text>
+<text x="22.4" y="201.5" fill="#cccccc" textLength="58.8" lengthAdjust="spacingAndGlyphs">meanrev</text>
+<text x="148.4" y="201.5" fill="#cccccc" textLength="42.0" lengthAdjust="spacingAndGlyphs">6.00%</text>
+<text x="22.4" y="237.5" fill="#ffffff" font-weight="700" textLength="58.8" lengthAdjust="spacingAndGlyphs">SIGNALS</text>
+<text x="89.6" y="237.5" fill="#ffffff" font-weight="700" textLength="25.2" lengthAdjust="spacingAndGlyphs">(4)</text>
+<text x="22.4" y="255.5" fill="#cccccc" textLength="42.0" lengthAdjust="spacingAndGlyphs">trend</text>
+<text x="114.8" y="255.5" fill="#cccccc" textLength="75.6" lengthAdjust="spacingAndGlyphs">NIFTY-FUT</text>
+<text x="249.2" y="255.5" fill="#cccccc" textLength="25.2" lengthAdjust="spacingAndGlyphs">dir</text>
+<text x="282.8" y="255.5" fill="#cccccc" textLength="50.4" lengthAdjust="spacingAndGlyphs">0.6200</text>
+<text x="350.0" y="255.5" fill="#cccccc" textLength="33.6" lengthAdjust="spacingAndGlyphs">edge</text>
+<text x="392.0" y="255.5" fill="#cccccc" textLength="58.8" lengthAdjust="spacingAndGlyphs">0.1200R</text>
+<text x="467.6" y="255.5" fill="#cccccc" textLength="33.6" lengthAdjust="spacingAndGlyphs">stop</text>
+<text x="509.6" y="255.5" fill="#cccccc" textLength="25.2" lengthAdjust="spacingAndGlyphs">180</text>
+<text x="22.4" y="273.5" fill="#cccccc" textLength="25.2" lengthAdjust="spacingAndGlyphs">tom</text>
+<text x="114.8" y="273.5" fill="#cccccc" textLength="109.2" lengthAdjust="spacingAndGlyphs">BANKNIFTY-FUT</text>
+<text x="249.2" y="273.5" fill="#cccccc" textLength="25.2" lengthAdjust="spacingAndGlyphs">dir</text>
+<text x="282.8" y="273.5" fill="#cccccc" textLength="8.4" lengthAdjust="spacingAndGlyphs">1</text>
+<text x="308.0" y="273.5" fill="#cccccc" textLength="33.6" lengthAdjust="spacingAndGlyphs">edge</text>
+<text x="350.0" y="273.5" fill="#cccccc" textLength="58.8" lengthAdjust="spacingAndGlyphs">0.1500R</text>
+<text x="425.6" y="273.5" fill="#cccccc" textLength="33.6" lengthAdjust="spacingAndGlyphs">stop</text>
+<text x="467.6" y="273.5" fill="#cccccc" textLength="25.2" lengthAdjust="spacingAndGlyphs">420</text>
+<text x="22.4" y="291.5" fill="#cccccc" textLength="58.8" lengthAdjust="spacingAndGlyphs">meanrev</text>
+<text x="114.8" y="291.5" fill="#cccccc" textLength="33.6" lengthAdjust="spacingAndGlyphs">SBIN</text>
+<text x="249.2" y="291.5" fill="#cccccc" textLength="25.2" lengthAdjust="spacingAndGlyphs">dir</text>
+<text x="282.8" y="291.5" fill="#cccccc" textLength="58.8" lengthAdjust="spacingAndGlyphs">-0.8000</text>
+<text x="358.4" y="291.5" fill="#cccccc" textLength="33.6" lengthAdjust="spacingAndGlyphs">edge</text>
+<text x="400.4" y="291.5" fill="#cccccc" textLength="58.8" lengthAdjust="spacingAndGlyphs">0.1000R</text>
+<text x="476.0" y="291.5" fill="#cccccc" textLength="33.6" lengthAdjust="spacingAndGlyphs">stop</text>
+<text x="518.0" y="291.5" fill="#cccccc" textLength="16.8" lengthAdjust="spacingAndGlyphs">14</text>
+<text x="22.4" y="309.5" fill="#cccccc" textLength="50.4" lengthAdjust="spacingAndGlyphs">factor</text>
+<text x="114.8" y="309.5" fill="#cccccc" textLength="67.2" lengthAdjust="spacingAndGlyphs">RELIANCE</text>
+<text x="249.2" y="309.5" fill="#cccccc" textLength="25.2" lengthAdjust="spacingAndGlyphs">dir</text>
+<text x="282.8" y="309.5" fill="#cccccc" textLength="50.4" lengthAdjust="spacingAndGlyphs">0.4000</text>
+<text x="350.0" y="309.5" fill="#cccccc" textLength="33.6" lengthAdjust="spacingAndGlyphs">edge</text>
+<text x="392.0" y="309.5" fill="#cccccc" textLength="58.8" lengthAdjust="spacingAndGlyphs">0.1000R</text>
+<text x="467.6" y="309.5" fill="#cccccc" textLength="33.6" lengthAdjust="spacingAndGlyphs">stop</text>
+<text x="509.6" y="309.5" fill="#cccccc" textLength="16.8" lengthAdjust="spacingAndGlyphs">61</text>
+<text x="22.4" y="345.5" fill="#ffffff" font-weight="700" textLength="58.8" lengthAdjust="spacingAndGlyphs">TARGETS</text>
+<text x="89.6" y="345.5" fill="#ffffff" font-weight="700" textLength="25.2" lengthAdjust="spacingAndGlyphs">(4)</text>
+<text x="22.4" y="363.5" fill="#cccccc" textLength="75.6" lengthAdjust="spacingAndGlyphs">NIFTY-FUT</text>
+<text x="207.2" y="363.5" fill="#cccccc" textLength="16.8" lengthAdjust="spacingAndGlyphs">65</text>
+<text x="240.8" y="363.5" fill="#cccccc" textLength="42.0" lengthAdjust="spacingAndGlyphs">trend</text>
+<text x="22.4" y="381.5" fill="#cccccc" textLength="109.2" lengthAdjust="spacingAndGlyphs">BANKNIFTY-FUT</text>
+<text x="207.2" y="381.5" fill="#cccccc" textLength="16.8" lengthAdjust="spacingAndGlyphs">30</text>
+<text x="240.8" y="381.5" fill="#cccccc" textLength="25.2" lengthAdjust="spacingAndGlyphs">tom</text>
+<text x="22.4" y="399.5" fill="#cccccc" textLength="33.6" lengthAdjust="spacingAndGlyphs">SBIN</text>
+<text x="190.4" y="399.5" fill="#cccccc" textLength="33.6" lengthAdjust="spacingAndGlyphs">-150</text>
+<text x="240.8" y="399.5" fill="#cccccc" textLength="58.8" lengthAdjust="spacingAndGlyphs">meanrev</text>
+<text x="22.4" y="417.5" fill="#cccccc" textLength="67.2" lengthAdjust="spacingAndGlyphs">RELIANCE</text>
+<text x="198.8" y="417.5" fill="#cccccc" textLength="25.2" lengthAdjust="spacingAndGlyphs">120</text>
+<text x="240.8" y="417.5" fill="#cccccc" textLength="50.4" lengthAdjust="spacingAndGlyphs">factor</text>
+<text x="22.4" y="453.5" fill="#ffffff" font-weight="700" textLength="50.4" lengthAdjust="spacingAndGlyphs">ORDERS</text>
+<text x="81.2" y="453.5" fill="#ffffff" font-weight="700" textLength="25.2" lengthAdjust="spacingAndGlyphs">(1)</text>
+<text x="22.4" y="471.5" fill="#cccccc" textLength="67.2" lengthAdjust="spacingAndGlyphs">RELIANCE</text>
+<text x="207.2" y="471.5" fill="#cccccc" textLength="16.8" lengthAdjust="spacingAndGlyphs">30</text>
+<text x="240.8" y="471.5" fill="#cccccc" textLength="100.8" lengthAdjust="spacingAndGlyphs">LIMIT_SINGLE</text>
+<text x="358.4" y="471.5" fill="#cccccc" textLength="50.4" lengthAdjust="spacingAndGlyphs">NORMAL</text>
+<text x="425.6" y="471.5" fill="#cccccc" textLength="75.6" lengthAdjust="spacingAndGlyphs">rebalance</text>
+<text x="22.4" y="507.5" fill="#ffffff" font-weight="700" textLength="42.0" lengthAdjust="spacingAndGlyphs">AUDIT</text>
+<text x="72.8" y="507.5" fill="#ffffff" font-weight="700" textLength="42.0" lengthAdjust="spacingAndGlyphs">TRAIL</text>
+<text x="123.2" y="507.5" fill="#ffffff" font-weight="700" textLength="25.2" lengthAdjust="spacingAndGlyphs">(6)</text>
+<text x="22.4" y="525.5" fill="#7b7b7b" textLength="50.4" lengthAdjust="spacingAndGlyphs">sizing</text>
+<text x="81.2" y="525.5" fill="#7b7b7b" textLength="8.4" lengthAdjust="spacingAndGlyphs">2</text>
+<text x="114.8" y="525.5" fill="#7b7b7b" textLength="50.4" lengthAdjust="spacingAndGlyphs">orders</text>
+<text x="173.6" y="525.5" fill="#7b7b7b" textLength="8.4" lengthAdjust="spacingAndGlyphs">1</text>
+<text x="207.2" y="525.5" fill="#7b7b7b" textLength="50.4" lengthAdjust="spacingAndGlyphs">regime</text>
+<text x="266.0" y="525.5" fill="#7b7b7b" textLength="8.4" lengthAdjust="spacingAndGlyphs">1</text>
+<text x="299.6" y="525.5" fill="#7b7b7b" textLength="159.6" lengthAdjust="spacingAndGlyphs">risk.instrument_cap</text>
+<text x="467.6" y="525.5" fill="#7b7b7b" textLength="8.4" lengthAdjust="spacingAndGlyphs">1</text>
+<text x="501.2" y="525.5" fill="#7b7b7b" textLength="84.0" lengthAdjust="spacingAndGlyphs">vol_target</text>
+<text x="593.6" y="525.5" fill="#7b7b7b" textLength="8.4" lengthAdjust="spacingAndGlyphs">1</text>
+<text x="22.4" y="543.5" fill="#7b7b7b" textLength="50.4" lengthAdjust="spacingAndGlyphs">regime</text>
+<text x="198.8" y="543.5" fill="#7b7b7b" textLength="92.4" lengthAdjust="spacingAndGlyphs">risk_scaler</text>
+<text x="299.6" y="543.5" fill="#7b7b7b" textLength="8.4" lengthAdjust="spacingAndGlyphs">1</text>
+<text x="316.4" y="543.5" fill="#7b7b7b" textLength="16.8" lengthAdjust="spacingAndGlyphs">-&gt;</text>
+<text x="341.6" y="543.5" fill="#7b7b7b" textLength="8.4" lengthAdjust="spacingAndGlyphs">1</text>
+<text x="366.8" y="543.5" fill="#7b7b7b" textLength="84.0" lengthAdjust="spacingAndGlyphs">calm_trend</text>
+<text x="22.4" y="561.5" fill="#7b7b7b" textLength="84.0" lengthAdjust="spacingAndGlyphs">vol_target</text>
+<text x="198.8" y="561.5" fill="#7b7b7b" textLength="42.0" lengthAdjust="spacingAndGlyphs">scale</text>
+<text x="249.2" y="561.5" fill="#7b7b7b" textLength="8.4" lengthAdjust="spacingAndGlyphs">1</text>
+<text x="266.0" y="561.5" fill="#7b7b7b" textLength="16.8" lengthAdjust="spacingAndGlyphs">-&gt;</text>
+<text x="291.2" y="561.5" fill="#7b7b7b" textLength="50.4" lengthAdjust="spacingAndGlyphs">0.9200</text>
+<text x="358.4" y="561.5" fill="#7b7b7b" textLength="33.6" lengthAdjust="spacingAndGlyphs">book</text>
+<text x="400.4" y="561.5" fill="#7b7b7b" textLength="25.2" lengthAdjust="spacingAndGlyphs">vol</text>
+<text x="434.0" y="561.5" fill="#7b7b7b" textLength="42.0" lengthAdjust="spacingAndGlyphs">14.1%</text>
+<text x="484.4" y="561.5" fill="#7b7b7b" textLength="16.8" lengthAdjust="spacingAndGlyphs">vs</text>
+<text x="509.6" y="561.5" fill="#7b7b7b" textLength="25.2" lengthAdjust="spacingAndGlyphs">13%</text>
+<text x="22.4" y="579.5" fill="#7b7b7b" textLength="159.6" lengthAdjust="spacingAndGlyphs">risk.instrument_cap</text>
+<text x="198.8" y="579.5" fill="#7b7b7b" textLength="42.0" lengthAdjust="spacingAndGlyphs">scale</text>
+<text x="249.2" y="579.5" fill="#7b7b7b" textLength="75.6" lengthAdjust="spacingAndGlyphs">NIFTY-FUT</text>
+<text x="333.2" y="579.5" fill="#7b7b7b" textLength="42.0" lengthAdjust="spacingAndGlyphs">2.90L</text>
+<text x="383.6" y="579.5" fill="#7b7b7b" textLength="16.8" lengthAdjust="spacingAndGlyphs">-&gt;</text>
+<text x="408.8" y="579.5" fill="#7b7b7b" textLength="42.0" lengthAdjust="spacingAndGlyphs">2.55L</text>
+<text x="467.6" y="579.5" fill="#7b7b7b" textLength="25.2" lengthAdjust="spacingAndGlyphs">25%</text>
+<text x="501.2" y="579.5" fill="#7b7b7b" textLength="16.8" lengthAdjust="spacingAndGlyphs">of</text>
+<text x="526.4" y="579.5" fill="#7b7b7b" textLength="50.4" lengthAdjust="spacingAndGlyphs">equity</text>
+<text x="22.4" y="597.5" fill="#7b7b7b" textLength="50.4" lengthAdjust="spacingAndGlyphs">sizing</text>
+<text x="198.8" y="597.5" fill="#7b7b7b" textLength="142.8" lengthAdjust="spacingAndGlyphs">hedge_ratio_drift</text>
+<text x="350.0" y="597.5" fill="#7b7b7b" textLength="50.4" lengthAdjust="spacingAndGlyphs">0.0310</text>
+<text x="408.8" y="597.5" fill="#7b7b7b" textLength="16.8" lengthAdjust="spacingAndGlyphs">-&gt;</text>
+<text x="434.0" y="597.5" fill="#7b7b7b" textLength="50.4" lengthAdjust="spacingAndGlyphs">0.1000</text>
+<text x="501.2" y="597.5" fill="#7b7b7b" textLength="134.4" lengthAdjust="spacingAndGlyphs">meanrev:SBIN|PNB</text>
+<text x="22.4" y="615.5" fill="#7b7b7b" textLength="50.4" lengthAdjust="spacingAndGlyphs">sizing</text>
+<text x="198.8" y="615.5" fill="#7b7b7b" textLength="75.6" lengthAdjust="spacingAndGlyphs">cost_gate</text>
+<text x="291.2" y="615.5" fill="#7b7b7b" textLength="92.4" lengthAdjust="spacingAndGlyphs">expiry:INFY</text>
+<text x="392.0" y="615.5" fill="#7b7b7b" textLength="33.6" lengthAdjust="spacingAndGlyphs">edge</text>
+<text x="434.0" y="615.5" fill="#7b7b7b" textLength="42.0" lengthAdjust="spacingAndGlyphs">Rs410</text>
+<text x="484.4" y="615.5" fill="#7b7b7b" textLength="8.4" lengthAdjust="spacingAndGlyphs">&lt;</text>
+<text x="501.2" y="615.5" fill="#7b7b7b" textLength="33.6" lengthAdjust="spacingAndGlyphs">3.0x</text>
+<text x="543.2" y="615.5" fill="#7b7b7b" textLength="33.6" lengthAdjust="spacingAndGlyphs">cost</text>
+<text x="585.2" y="615.5" fill="#7b7b7b" textLength="42.0" lengthAdjust="spacingAndGlyphs">Rs180</text>
+<text x="22.4" y="633.5" fill="#7b7b7b" textLength="50.4" lengthAdjust="spacingAndGlyphs">orders</text>
+<text x="198.8" y="633.5" fill="#7b7b7b" textLength="33.6" lengthAdjust="spacingAndGlyphs">band</text>
+<text x="240.8" y="633.5" fill="#7b7b7b" textLength="67.2" lengthAdjust="spacingAndGlyphs">HDFCBANK</text>
+<text x="324.8" y="633.5" fill="#7b7b7b" textLength="67.2" lengthAdjust="spacingAndGlyphs">HDFCBANK</text>
+<text x="400.4" y="633.5" fill="#7b7b7b" textLength="42.0" lengthAdjust="spacingAndGlyphs">delta</text>
+<text x="450.8" y="633.5" fill="#7b7b7b" textLength="50.4" lengthAdjust="spacingAndGlyphs">inside</text>
+<text x="509.6" y="633.5" fill="#7b7b7b" textLength="25.2" lengthAdjust="spacingAndGlyphs">30%</text>
+<text x="543.2" y="633.5" fill="#7b7b7b" textLength="33.6" lengthAdjust="spacingAndGlyphs">band</text>
+<text x="14.0" y="687.5" fill="#ffffff" textLength="8.4" lengthAdjust="spacingAndGlyphs">└</text>
+<rect x="22.4" y="674" width="117.6" height="18" fill="#1f1f1f"/>
+<text x="22.4" y="687.5" fill="#6a6a6a" textLength="117.6" lengthAdjust="spacingAndGlyphs">127.0.0.1:8000</text>
+<rect x="140.0" y="674" width="8.4" height="18" fill="#1f1f1f"/>
+<rect x="148.4" y="674" width="67.2" height="18" fill="#1f1f1f"/>
+<text x="148.4" y="687.5" fill="#6a6a6a" textLength="33.6" lengthAdjust="spacingAndGlyphs">just</text>
+<text x="190.4" y="687.5" fill="#6a6a6a" textLength="25.2" lengthAdjust="spacingAndGlyphs">now</text>
+<rect x="215.6" y="674" width="8.4" height="18" fill="#1f1f1f"/>
+<rect x="224.0" y="674" width="109.2" height="18" fill="#1f1f1f"/>
+<text x="224.0" y="687.5" fill="#6a6a6a" textLength="25.2" lengthAdjust="spacingAndGlyphs">812</text>
+<text x="257.6" y="687.5" fill="#6a6a6a" textLength="75.6" lengthAdjust="spacingAndGlyphs">decisions</text>
+<rect x="333.2" y="674" width="714.0" height="18" fill="#1f1f1f"/>
+<text x="1047.2" y="687.5" fill="#ffffff" textLength="8.4" lengthAdjust="spacingAndGlyphs">┘</text>
+</g></svg>

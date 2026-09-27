@@ -1,19 +1,19 @@
-import { StatGrid, type StatItem } from "gloomberb/components";
+import { StatGrid, statGridRows, type StatItem } from "gloomberb/components";
 import { colors } from "gloomberb/theme";
 import type { PaneProps } from "gloomberb/types/plugin";
 import { Box, ScrollBox, Text, TextAttributes } from "gloomberb/ui";
 
 import {
-  bar, engineState, formatAge, formatInr, formatNum, formatPct, formatTs, leverage, regimeMix, signTone,
+  bar, engineState, type Tone, formatAge, formatInr, formatNum, formatPct, formatTs, leverage, regimeMix, signTone,
 } from "../model";
 import { QsBody, useQsFooter, useQsResource } from "../session";
-import { QsTable, type QsColumn } from "../table";
+import { toneColor } from "../table";
 import { PANE, type AlertRow, type Overview, type PnlMetrics, type RiskEventRow } from "../types";
 
 /** A bold section label, the terminal equivalent of a panel title. */
 export function Section({ title }: { title: string }) {
   return (
-    <Box height={1} marginTop={1} paddingX={1}>
+    <Box height={1} marginTop={1} paddingX={1} flexShrink={0}>
       <Text fg={colors.textBright} attributes={TextAttributes.BOLD}>{title.toUpperCase()}</Text>
     </Box>
   );
@@ -69,14 +69,21 @@ function riskItems(o: Overview, m: PnlMetrics | null): StatItem[] {
   ];
 }
 
-const EVENT_COLUMNS: QsColumn<RiskEventRow | AlertRow>[] = [
-  { id: "ts", label: "TIME", width: 13, align: "left", text: (r) => formatTs(r.ts) },
-  { id: "sev", label: "SEV", width: 5, align: "left", text: (r) => r.severity.toUpperCase().slice(0, 4),
-    tone: (r) => (r.severity === "crit" || r.severity === "critical" ? "negative" : r.severity === "warn" ? "warning" : "muted") },
-  { id: "kind", label: "EVENT", width: 22, align: "left", text: (r) => r.kind },
-  { id: "what", label: "DETAIL", width: 20, align: "left", flexGrow: 1,
-    text: (r) => ("title" in r ? r.title : [r.symbol, r.cause].filter(Boolean).join("  ")) },
-];
+const severityTone = (s: string): Tone => (s === "crit" ? "negative" : s === "warn" ? "warning" : "muted");
+
+/** One recent risk event or alert as a fixed-column row: time, severity, kind, detail. */
+function EventLine({ row, width }: { row: RiskEventRow | AlertRow; width: number }) {
+  const detail = "title" in row ? row.title : [row.symbol, row.cause].filter(Boolean).join("  ");
+  const tone = toneColor(severityTone(row.severity)) ?? colors.text;
+  return (
+    <Box height={1} paddingX={1} flexDirection="row" width={width} flexShrink={0}>
+      <Text fg={colors.textDim}>{formatTs(row.ts).padEnd(14)}</Text>
+      <Text fg={tone}>{row.severity.toUpperCase().padEnd(6)}</Text>
+      <Text fg={colors.text}>{row.kind.padEnd(24)}</Text>
+      <Text fg={colors.textDim}>{detail}</Text>
+    </Box>
+  );
+}
 
 export function OverviewPane({ width, height, focused }: PaneProps) {
   const overview = useQsResource<Overview>("/overview");
@@ -87,24 +94,29 @@ export function OverviewPane({ width, height, focused }: PaneProps) {
   const events = o ? [...o.recent_risk_events, ...o.recent_alerts]
     .sort((a, b) => (b.ts ?? "").localeCompare(a.ts ?? "")) : [];
 
+  const grid = (items: StatItem[]) => (
+    // scroll content must not shrink, or yoga squeezes the grids and the rows below vanish
+    <Box height={statGridRows(items, width)} flexShrink={0}><StatGrid items={items} width={width} /></Box>
+  );
+
   return (
-    <QsBody width={width} height={height} loading={overview.loading} error={overview.error} hasData={!!o}>
+    <Box flexDirection="column" width={width} height={height}>
+      <QsBody width={width} height={height} loading={overview.loading} error={overview.error} hasData={!!o}>
       {o ? (
-        <ScrollBox scrollY focusable={false} flexDirection="column" width={width} height={height}>
+        <ScrollBox scrollY focusable={false} flexDirection="column" flexGrow={1} width={width}>
           <Section title="Engine" />
-          <StatGrid items={engineItems(o)} width={width} />
+          {grid(engineItems(o))}
           <Section title="Book" />
-          <StatGrid items={bookItems(o, m)} width={width} />
+          {grid(bookItems(o, m))}
           <Section title="Risk" />
-          <StatGrid items={riskItems(o, m)} width={width} />
+          {grid(riskItems(o, m))}
           <Section title="Recent events" />
-          <Box height={Math.max(4, Math.min(events.length + 2, 12))}>
-            <QsTable items={events} columns={EVENT_COLUMNS} width={width}
-              height={Math.max(4, Math.min(events.length + 2, 12))} focused={focused}
-              getKey={(r) => ("title" in r ? `a${r.id}` : `r${r.id}`)} emptyTitle="No risk events or alerts." />
-          </Box>
+          {events.length === 0
+            ? <Box height={1} flexShrink={0} paddingX={1}><Text fg={colors.textMuted}>No risk events or alerts.</Text></Box>
+            : events.map((row) => <EventLine key={"title" in row ? `a${row.id}` : `r${row.id}`} row={row} width={width} />)}
         </ScrollBox>
       ) : null}
-    </QsBody>
+      </QsBody>
+    </Box>
   );
 }
