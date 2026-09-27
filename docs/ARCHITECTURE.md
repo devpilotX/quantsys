@@ -84,6 +84,27 @@ explain view renders that trail as recorded.
     and restored after warm-up, so the daily 08:50 recycle keeps kill
     latches, drawdown references, holds and rebalance clocks.
 
+## Cost model
+
+Every fill in backtest and paper pays the modelled cost, and the cost gate
+uses the same numbers. Checked on 2026-09-27:
+
+| Charge | Rate | Source |
+|---|---|---|
+| STT | Futures 0.05% on sells, options 0.15% of premium, from 2026-04-01; delivery equity 0.1% both sides | [Moneycontrol](https://www.moneycontrol.com/news/business/markets/up-to-150-stt-hike-comes-into-effect-from-april-1-here-s-how-it-will-impact-f-o-traders-13875419.html) |
+| NSE transaction charges | ₹2.97 per lakh equity, ₹1.73 futures, ₹35.03 option premium, plus IPFT | [Zerodha bulletin](https://zerodha.com/marketintel/bulletin/391488/revision-in-transactions-charges-from-1st-october-2024) |
+| Brokerage | Equity min(₹20, 0.1%) with a ₹5 minimum, delivery included; ₹20 per F&O order | [Angel One](https://www.angelone.in/support/charges-and-cashbacks/brokerage-charges) |
+| DP charge | ₹20 + GST per delivery sell | [Angel One](https://www.angelone.in/exchange-transaction-charges) |
+| Stamp duty, SEBI fee, GST | Stamp on buys (0.015% delivery), ₹10 per crore, 18% on fees | [Angel One](https://www.angelone.in/exchange-transaction-charges) |
+| Slippage and impact | 3 bps equity, 1.5 bps futures, plus square-root impact on participation | model |
+
+Contract specifications follow the exchange: NIFTY lots of 65 and BANKNIFTY
+lots of 30 from the January 2026 series
+([Zerodha bulletin](https://zerodha.com/marketintel/bulletin/429705/revision-in-lot-size-of-index-derivative-contracts-from-december-30-2025)),
+and monthly expiry on the last Tuesday since 2025-09-01
+([Mint](https://www.livemint.com/market/stock-market-news/nse-f-o-expiry-shifts-to-tuesday-bse-to-thursday-from-september-1-details-here-11750214653248.html)).
+The live runner refreshes lot sizes from the Angel One instrument master.
+
 ## Control plane
 
 ```
