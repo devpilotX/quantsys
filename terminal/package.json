@@ -4,11 +4,11 @@
   "description": "Read-only Gloomberb monitor for the quantsys NSE trading engine",
   "type": "module",
   "main": "index.tsx",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "private": true,
   "repository": {
     "type": "git",
-    "url": "https://github.com/devpilotX/quant",
+    "url": "https://github.com/devpilotX/qi",
     "directory": "terminal"
   },
   "scripts": {

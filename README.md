@@ -1,7 +1,15 @@
 # quantsys
 
-quantsys is a systematic trading engine for NSE cash equities and index
-futures, trading through Angel One SmartAPI. A single method,
+Systematic trading for NSE cash equities and index futures: a deterministic
+decision engine, an operator dashboard and a Bloomberg-style terminal.
+
+[![CI](https://github.com/devpilotX/qi/actions/workflows/ci.yml/badge.svg)](https://github.com/devpilotX/qi/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.11%20to%203.14-3776ab)
+![Licence](https://img.shields.io/badge/licence-proprietary-555555)
+
+![quantsys Monitor in the terminal](docs/images/terminal-monitor.svg)
+
+quantsys trades through Angel One SmartAPI. A single method,
 `DecisionEngine.decide()`, runs the backtester, the paper engine and the live
 engine, so a result from one path holds for the others. Around it sit an
 operator dashboard (FastAPI and Next.js on Postgres/TimescaleDB) and a
@@ -15,8 +23,8 @@ plugin.
 | Trading | Paper only. Live is disarmed (`QS_LIVE_ARMED=0`). |
 | Research | The 2016 to 2026 alpha search is closed: no rule cleared the deployment gate ([evidence](docs/RESEARCH_CLOSEOUT.md)). |
 | Forward study | Forward Study 2, pre-registered, running on paper since 2026-07-02; first read 2027-01-05 ([registration](docs/FORWARD_STUDY_2.md)). |
-| Engine review | The September 2026 fixes are on `main` ([CHANGELOG](CHANGELOG.md)). Deploying them into the running study is an open decision ([#26](https://github.com/devpilotX/quant/issues/26)). |
-| Before live | The credentials exposed on 2026-06-11 must be rotated ([SECURITY.md](SECURITY.md)), and the order path verified against the live API ([#21](https://github.com/devpilotX/quant/issues/21)). |
+| Engine review | The September 2026 fixes are on `main` ([CHANGELOG](CHANGELOG.md)). Deploying them into the running study is an open decision. |
+| Before live | The credentials exposed on 2026-06-11 must be rotated ([SECURITY.md](SECURITY.md)), and the order path verified against the live API ([GOLIVE.md](docs/GOLIVE.md)). |
 
 ## How a decision is made
 
@@ -116,18 +124,11 @@ lost 4.4% while an equal-weight top-100 basket gained 6.6%
 none of these rules beats the index, and the only legitimate test left is
 forward, on rules registered before they see data.
 
-## Components
+## Terminal
 
-| Component | What it is |
-|---|---|
-| [src/quantsys](src/quantsys) | The engine: data, regime, strategies, allocation, sizing, risk, costs, order diff, backtester, Angel One adapter and OMS |
-| [src/quantsys/research](src/quantsys/research) | Standalone research kit: NSE bhavcopy and F&O panels, cross-sectional backtester, deflated Sharpe, PBO, purged K-fold |
-| [dashboard/backend](dashboard/backend) | FastAPI control plane and engine bridge: argon2id and TOTP login, CSRF, re-auth for dangerous actions, audit log, Alembic migrations |
-| [dashboard/frontend](dashboard/frontend) | Next.js 16 operator dashboard |
-| [terminal](terminal) | Gloomberb plugin: a read-only terminal monitor of the engine |
-| [deploy](deploy) | Docker compose, nginx, systemd timers (08:50 IST recycle, daily self-check, Saturday backtest refresh), backups |
-
-The terminal opens from the Gloomberb command bar by mnemonic:
+The terminal is a read-only monitor of the engine inside Gloomberb, reading
+the dashboard API. Each pane opens from the command bar by mnemonic, as on a
+Bloomberg terminal, and logs in with the operator password and a TOTP code.
 
 | Mnemonic | Pane |
 |---|---|
@@ -140,6 +141,31 @@ The terminal opens from the Gloomberb command bar by mnemonic:
 | `QSR` | Risk: exposure, regime mix, the caps that bound on the last bar |
 | `QSB` | Backtests and whether each clears the live gate |
 
+Every decision bar can be opened to the full story of what the engine did and
+why:
+
+![A decision bar in the QSD pane](docs/images/terminal-decision.svg)
+
+![Open positions in the QSP pane](docs/images/terminal-positions.svg)
+
+![Sleeve statistics in the QSS pane](docs/images/terminal-sleeves.svg)
+
+![Equity curve and performance in the QSE pane](docs/images/terminal-performance.svg)
+
+The images are rendered by Gloomberb's own renderer from demo data
+(`terminal/scripts/screenshots.tsx`).
+
+## Components
+
+| Component | What it is |
+|---|---|
+| [src/quantsys](src/quantsys) | The engine: data, regime, strategies, allocation, sizing, risk, costs, order diff, backtester, Angel One adapter and OMS |
+| [src/quantsys/research](src/quantsys/research) | Standalone research kit: NSE bhavcopy and F&O panels, cross-sectional backtester, deflated Sharpe, PBO, purged K-fold |
+| [dashboard/backend](dashboard/backend) | FastAPI control plane and engine bridge: argon2id and TOTP login, CSRF, re-auth for dangerous actions, audit log, Alembic migrations |
+| [dashboard/frontend](dashboard/frontend) | Next.js 16 operator dashboard |
+| [terminal](terminal) | Gloomberb plugin: a read-only terminal monitor of the engine |
+| [deploy](deploy) | Docker compose, nginx, systemd timers (08:50 IST recycle, daily self-check, Saturday backtest refresh), backups |
+
 ## Documentation
 
 [Architecture](docs/ARCHITECTURE.md) · [Development](docs/DEVELOPMENT.md) ·
@@ -150,5 +176,6 @@ The terminal opens from the Gloomberb command bar by mnemonic:
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE), which also states that nothing here is
-investment advice.
+Copyright (c) 2026 devpilotX. All rights reserved. The code is published for
+viewing only; no licence to use, copy or modify it is granted. See
+[LICENSE](LICENSE), which also states that nothing here is investment advice.

@@ -26,6 +26,7 @@ node_modules/
 .next/
 out/
 dist/
+build/
 *.tsbuildinfo
 .env.*
 !.env.example

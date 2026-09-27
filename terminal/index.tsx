@@ -60,7 +60,7 @@ export const quantsysPlugin: GloomPlugin = {
   name: "quantsys",
   version: "0.1.0",
   description: "Read-only monitor for the quantsys NSE trading engine",
-  homepage: "https://github.com/devpilotX/quant",
+  homepage: "https://github.com/devpilotX/qi",
   toggleable: true,
   // Terminal only: the session cookie is read from the login response, which
   // the desktop and web transports do not pass through.

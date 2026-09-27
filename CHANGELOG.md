@@ -14,6 +14,15 @@ stack, the signals, the live order path and the paper runner. Each fix below
 has a regression test that failed before it. What they mean for the running
 forward study is appended to `docs/FORWARD_STUDY_2.md`.
 
+### Changed: repository and licence
+
+- The code moved to `devpilotX/qi` and is proprietary: all rights reserved,
+  published for viewing only (`LICENSE`). It was MIT before.
+- Dependabot version updates are off; dependencies move by hand, together with
+  the pinned sets in `constraints/`.
+- The Monitor pane keeps every section on screen at any height, and the
+  README shows the terminal panes, rendered by `terminal/scripts/screenshots.tsx`.
+
 ### Fixed: follow-up to the review
 
 - The broker book includes delivery holdings. `positions()` read only

@@ -176,3 +176,6 @@ Study 1 supersession.
 - 2026-09-27: the fixes merged to `main` in pull request #27 (merge commit
   ca9ab09). They are not deployed to the VPS; the Study 2 or Study 3 decision is
   tracked in issue #26.
+
+- 2026-09-27: the repository moved to devpilotX/qi. Pull request and issue
+  numbers above refer to devpilotX/quant.

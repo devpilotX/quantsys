@@ -1,6 +1,8 @@
 # Contributing
 
-This is a single-maintainer research and trading system. The bar for changes is
+quantsys is proprietary and maintained by devpilotX alone; outside contributions
+are not accepted (see [LICENSE](LICENSE)). This file records the engineering
+rules the codebase is held to. The bar for a change is
 set by one question: **would this change make a reported number wrong, or a
 placed order wrong?** Everything below follows from that.
 
@@ -103,8 +105,9 @@ ops: unhang the weekly backtest refresh
 
 ## Pull requests
 
-CI must be green: lint, mypy, the test matrix (3.11–3.14), the dashboard suite,
-the wheel build, and the secret scan. Describe what you verified and what you
+CI must be green: lint, mypy, the test matrix (3.11 to 3.14), the dashboard suite
+on SQLite and Postgres, the frontend, the terminal plugin, the images, the wheel
+build and the secret scan. Describe what you verified and what you
 could not. "Should work" is not a test result.
 
 ## Staged lint debt

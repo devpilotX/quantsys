@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "Auto-adaptive systematic trading system for Indian markets (NSE/BSE) via Angel One SmartAPI"
 readme = "README.md"
 requires-python = ">=3.11"
-license = "MIT"
+license = "LicenseRef-Proprietary"
 license-files = ["LICENSE"]
 authors = [{ name = "devpilotX", email = "devpilotx@gmail.com" }]
 keywords = ["quantitative-finance", "algorithmic-trading", "backtesting", "nse", "india"]
@@ -34,9 +34,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/devpilotX/quant"
-Repository = "https://github.com/devpilotX/quant"
-Issues = "https://github.com/devpilotX/quant/issues"
+Homepage = "https://github.com/devpilotX/qi"
+Repository = "https://github.com/devpilotX/qi"
+Issues = "https://github.com/devpilotX/qi/issues"
 
 [project.optional-dependencies]
 dev = [

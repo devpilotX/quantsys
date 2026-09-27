@@ -1,34 +1,31 @@
-MIT License
+Copyright (c) 2026 devpilotX. All rights reserved.
 
-Copyright (c) 2026 devpilotX
+This repository and everything in it, including the source code, research,
+documentation and images, is proprietary to devpilotX. No licence is granted
+to use, copy, modify, merge, publish, distribute, sublicense, sell, deploy or
+create derivative works from any part of it, in whole or in part, without the
+prior written permission of devpilotX.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+The repository is published for viewing only. Viewing it on GitHub and
+creating a fork within GitHub are permitted to the extent the GitHub Terms of
+Service require; neither grants any further right.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Third-party packages this software depends on are not part of it and remain
+under their own licences.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+DEVPILOTX BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
----
+Not investment advice. This software is a research and engineering system. It
+is not a recommendation or solicitation to trade and makes no claim of
+profitability; its own research record (docs/RESEARCH_CLOSEOUT.md) found no
+strategy that cleared its deployment gate. Trading leveraged instruments can
+lose more than the capital committed. Anyone who runs it against a brokerage
+account does so at their own risk and is responsible for their own regulatory
+obligations, including SEBI rules on algorithmic trading.
 
-ADDITIONAL NOTICE — NOT INVESTMENT ADVICE
-
-This software is a research and engineering artifact. It is not investment
-advice, not a solicitation to trade, and carries no representation that it is
-profitable. The repository's own research record (docs/RESEARCH_CLOSEOUT.md)
-concludes that no strategy in it demonstrated a durable edge that cleared its
-deployment gate. Trading leveraged instruments can lose more than the capital
-committed. Anyone running this against a live brokerage account does so at
-their own risk and is responsible for their own regulatory obligations,
-including SEBI algorithmic-trading registration where applicable.
+Permission requests: devpilotx@gmail.com

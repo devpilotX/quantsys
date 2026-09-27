@@ -7,7 +7,7 @@ Angel One whitelisted static IP (verify in SmartAPI app settings).
 ## 1. First deployment
 
 ```bash
-git clone https://github.com/devpilotX/Quant.git && cd Quant/deploy
+sudo git clone https://github.com/devpilotX/qi.git /opt/quant && cd /opt/quant/deploy   # the systemd units expect /opt/quant
 cp .env.example .env && nano .env          # set POSTGRES_PASSWORD + secrets
 
 # TLS first issuance (nginx serves the challenge on :80)
