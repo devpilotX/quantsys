@@ -143,9 +143,10 @@ python -m quantsys.backtest.runstudy --replay data/nse15 --persist
 ```
 
 The research kit in `src/quantsys/research/` runs without the engine or a
-broker. It builds survivorship-free daily panels from NSE's public bhavcopy
-archive and includes the cross-sectional backtester, PBO and purged K-fold
-validation used in the alpha search.
+broker; install it with `pip install -e ".[research]"`. It builds
+survivorship-free daily panels from NSE's public bhavcopy archive and includes
+the cross-sectional backtester, PBO and purged K-fold validation used in the
+alpha search.
 
 ## Running the dashboard
 

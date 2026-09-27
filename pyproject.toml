@@ -68,6 +68,12 @@ broker = [
     "pyotp==2.10.0",
     "logzero==1.7.0",
 ]
+# The standalone research kit (quantsys.research): bhavcopy and F&O downloads
+# and the parquet panel cache. Neither the engine nor the tests need these.
+research = [
+    "pyarrow>=17,<26",
+    "requests>=2.31,<3",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
