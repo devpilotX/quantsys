@@ -19,7 +19,7 @@ backtest refresh.
 - Forward Study 2, a pre-registered paper study, started on 2026-07-02. Its first
   read is on 2027-01-05 ([docs/FORWARD_STUDY_2.md](docs/FORWARD_STUDY_2.md)).
 - The engine review of September 2026 found defects that change what the paper
-  engine does. The fixes are on the `engine-integrity` branch and every one is
+  engine does. The fixes are on `main` and every one is
   listed in [CHANGELOG.md](CHANGELOG.md). Whether to deploy them into the running
   study is the owner's decision; the "Implementation review" section of
   `docs/FORWARD_STUDY_2.md` sets out what each option costs.
