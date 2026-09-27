@@ -1,4 +1,4 @@
-"""Down-shock forward-tracker core logic — synthetic, no data/network.
+"""Down-shock forward-tracker core logic: synthetic, no data/network.
 
 Verifies the FROZEN signal: a 4σ + high-volume down day followed by continued
 idiosyncratic down-drift opens a market-neutral SHORT that books positive forward

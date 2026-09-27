@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# quantsys off-box backup — takes a FRESH pg_dump of the live DB, encrypts it
+# quantsys off-box backup: takes a FRESH pg_dump of the live DB, encrypts it
 # symmetrically (aes-256-cbc, pbkdf2 200k iterations; passphrase is
-# BACKUP_PASSPHRASE in deploy/.env — gitignored, NEVER in the repo), and ships
+# BACKUP_PASSPHRASE in deploy/.env: gitignored, NEVER in the repo), and ships
 # it to the operator's Telegram chat via the bot API. Telegram's cloud is the
 # off-box copy, and the daily arrival doubles as a delivery heartbeat.
 # Appends one OK/FAIL line to deploy/_audit/offbox.log, which selfcheck.sh
@@ -13,7 +13,7 @@
 #             -pass pass:'<BACKUP_PASSPHRASE>'
 # Restore:  pg_restore -U quantsys -d quantsys --clean --if-exists quantsys.dump
 set -u
-cd "$(dirname "$0")/.."          # -> deploy/
+cd "$(dirname "$0")/.." || exit 1   # -> deploy/
 LOG=_audit/offbox.log
 OUTDIR=_audit/offbox
 mkdir -p "$OUTDIR"
@@ -59,5 +59,7 @@ resp=$(curl -s --max-time 180 "https://api.telegram.org/bot${TOK}/sendDocument" 
 echo "$resp" | grep -q '"ok":true' || fail "telegram sendDocument rejected"
 
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) OK sent ${enc##*/} ${size}B" >> "$LOG"
+# the names are ours (quantsys-<stamp>.dump.enc), so ls is safe to parse here
+# shellcheck disable=SC2012
 ls -1t "$OUTDIR"/*.enc 2>/dev/null | tail -n +4 | xargs -r rm -f
 exit 0

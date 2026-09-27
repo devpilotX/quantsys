@@ -57,13 +57,14 @@ class FakeTransport:
         return "ft"
 
     def rmsLimit(self):
-        return {"data": {"availablecash": "1500000"}}
+        return {"status": True, "data": {"availablecash": "1500000"}}
 
     def position(self):
-        return {"data": [{"tradingsymbol": "SBIN-EQ", "netqty": "10", "netprice": "550"}]}
+        return {"status": True,
+                "data": [{"tradingsymbol": "SBIN-EQ", "netqty": "10", "netprice": "550"}]}
 
     def orderBook(self):
-        return {"data": list(self._book.values())}
+        return {"status": True, "data": list(self._book.values())}
 
     def placeOrder(self, params):
         self._seq += 1
@@ -118,14 +119,14 @@ def test_connect_loads_instruments(broker):
 def test_index_resolves_to_amxidx_candle_token():
     """Regression: config 'NIFTY' must resolve to the AMXIDX index token
     (99926000, which returns candles), NOT the bare spot row (26000, returns
-    none) — the bug that starved the regime HMM and left it stuck in `warmup`."""
+    none): the bug that starved the regime HMM and left it stuck in `warmup`."""
     master = [
         {"symbol": "NIFTY", "name": "NIFTY", "token": "26000", "exch_seg": "NSE",
          "instrumenttype": "", "lotsize": "1", "tick_size": "5"},
         {"symbol": "Nifty 50", "name": "NIFTY", "token": "99926000", "exch_seg": "NSE",
          "instrumenttype": "AMXIDX", "lotsize": "1", "tick_size": "5"},
         # decoy: same index name on the currency segment with a token that
-        # returns no NSE candles — must NOT win.
+        # returns no NSE candles: must NOT win.
         {"symbol": "NIFTY", "name": "NIFTY", "token": "2", "exch_seg": "CDS",
          "instrumenttype": "AMXIDX", "lotsize": "1", "tick_size": "5"},
         {"symbol": "HDFCBANK", "name": "HDFCBANK", "token": "1333", "exch_seg": "NSE",
@@ -280,8 +281,10 @@ def test_oms_urgency_orders_go_first(broker):
     normal = OrderIntent("SBIN-EQ", 5, ExecutionStyle.MARKET_SINGLE, Urgency.NORMAL, "a")
     kill = OrderIntent("SBIN-EQ", -5, ExecutionStyle.MARKET_SINGLE, Urgency.KILL, "b")
     ts = datetime(2026, 6, 12, 9, 20)
-    oms.submit_intents([normal, kill], insts, ts, {"SBIN-EQ": 550.0})
-    # the KILL (risk-reducing) order must be the first placeOrder call — it
+    # the kill sells a held long: a cash-equity sell must be reduce-only
+    oms.submit_intents([normal, kill], insts, ts, {"SBIN-EQ": 550.0},
+                       positions={"SBIN-EQ": 5})
+    # the KILL (risk-reducing) order must be the first placeOrder call: it
     # sorts ahead of the NORMAL order, so it is the SELL
     assert broker._transport.placed[0]["transactiontype"] == "SELL"
     assert broker._transport.placed[1]["transactiontype"] == "BUY"

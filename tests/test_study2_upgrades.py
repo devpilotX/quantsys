@@ -1,6 +1,6 @@
 """Forward Study 2 upgrades: time-based bar flush, equity-scaled dust floor,
 regime-conditional Kelly tilt, and the three new sleeves (downshock, reversal,
-tom) — registration, frozen-rule behaviour, breadth/unseeded safety, and state
+tom): registration, frozen-rule behaviour, breadth/unseeded safety, and state
 round-trips.
 """
 
@@ -44,7 +44,7 @@ def test_flush_older_completes_elapsed_bars_without_next_tick():
 
 
 def test_flush_older_emits_the_session_close_bar():
-    """The 15:15 bar never sees a tick cross 15:30 — only a time-based flush
+    """The 15:15 bar never sees a tick cross 15:30; only a time-based flush
     can complete it (the engine previously never decided on the close bar)."""
     emitted = []
     agg = BarAggregator(15, lambda s, b: emitted.append(b))
@@ -331,7 +331,7 @@ def test_tom_emits_long_index_future_inside_window_only():
 
 # ------------------------------------------ ensemble wiring sanity (T6 slots)
 def test_study2_config_activates_six_sleeves():
-    """Deployed ensemble: reversal is implemented but OFF — its pre-deployment
+    """Deployed ensemble: reversal is implemented but OFF; its pre-deployment
     sanity check was net-negative across the whole grid (rejected arm)."""
     from pathlib import Path
 

@@ -62,7 +62,7 @@ class ChainProvider(Protocol):
 
 
 class SyntheticChainProvider:
-    """BSM-priced synthetic chain. NOT market data — for tests/dry-runs only.
+    """BSM-priced synthetic chain. NOT market data: for tests/dry-runs only.
     Builds a symmetric strike ladder around spot at a configured IV."""
 
     def __init__(self, *, iv: float = 0.15, r: float = 0.066,

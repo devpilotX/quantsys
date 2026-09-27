@@ -139,31 +139,28 @@ def test_factor_seed_days_needed_covers_lookback():
 
 def test_factor_warmup_before_seed_then_on_seeded_emits():
     """Regression: LiveRunner runs warmup (decide() -> generate_signals) BEFORE
-    _seed_daily_panels. That first pass rebalances an EMPTY panel and advances
-    the internal cadence counter, so after seeding factor would stay a pure
-    no-op until _days_since rolls over again — which, across restarts that
-    re-run warmup, is never. on_seeded() must force the next bar to rebalance."""
+    _seed_daily_panels. That first pass tried to rebalance an EMPTY panel and
+    used to restart the cadence counter anyway, so after seeding factor stayed
+    a pure no-op until _days_since rolled over again. Now a rebalance that
+    forms no basket leaves the clock alone, so the first bar after seeding
+    rebalances with or without on_seeded()."""
     st, seeds = _universe()
     cfg = _small_cfg(rebalance_bars=5)   # cadence: rebalance every 5 sessions
-    strat = FactorStrategy(cfg)
-
-    # simulate warmup: decide() on the still-empty panel across 3 session dates
-    # (< rebalance_bars, so the counter lands mid-cycle just like production)
-    for k in range(3):
-        empty = MarketState(ts=_STATE_DAY - timedelta(days=5 - k), equity=1.5e8,
-                            bars={}, instruments={}, positions={})
-        assert strat.generate_signals(empty) == []   # empty panel -> nothing
-
-    # panels get seeded AFTER warmup (the real ordering)
-    _seeded(strat, seeds)
-    # without on_seeded the counter is still mid-cycle -> factor stays dark
-    assert strat.generate_signals(st) == [], "reproduces the dark-sleeve bug"
-
-    # the fix: seeding is done -> force a rebalance on the next bar
-    strat.on_seeded()
-    sigs = strat.generate_signals(st)
-    assert len(sigs) == 10, "balanced 5x5 basket emitted once seeded"
-    assert {s.direction > 0 for s in sigs} == {True, False}
+    for call_on_seeded in (False, True):
+        strat = FactorStrategy(cfg)
+        # simulate warmup: decide() on the still-empty panel across the 3
+        # sessions before the live bar. Warm-up replays up to the latest
+        # session, so the seeded panel holds no session the replay missed.
+        for k in range(3):
+            empty = MarketState(ts=_STATE_DAY - timedelta(days=3 - k), equity=1.5e8,
+                                bars={}, instruments={}, positions={})
+            assert strat.generate_signals(empty) == []   # empty panel -> nothing
+        _seeded(strat, seeds)       # panels get seeded AFTER warmup (the real ordering)
+        if call_on_seeded:
+            strat.on_seeded()
+        sigs = strat.generate_signals(st)
+        assert len(sigs) == 10, f"balanced 5x5 basket (on_seeded={call_on_seeded})"
+        assert {s.direction > 0 for s in sigs} == {True, False}
 
 
 def test_factor_state_roundtrip_preserves_basket():

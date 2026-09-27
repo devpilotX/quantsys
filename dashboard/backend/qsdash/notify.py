@@ -20,7 +20,7 @@ from qsdash.config import settings
 
 log = logging.getLogger(__name__)
 
-# httpx logs every request line at INFO — including the full Telegram API URL,
+# httpx logs every request line at INFO: including the full Telegram API URL,
 # which embeds the bot token. Pin httpx to WARNING so the token never hits the
 # logs. (The token itself must still be rotated; it was already exposed.)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -137,4 +137,4 @@ def _delivery_worker() -> None:  # pragma: no cover - exercised via integration
                 break
             finally:
                 sess.close()
-            time.sleep(0.2)  # row not committed yet — wait and retry
+            time.sleep(0.2)  # row not committed yet: wait and retry

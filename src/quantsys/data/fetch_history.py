@@ -5,7 +5,7 @@ format the backtester reads (one ``<SYMBOL>.csv`` per symbol with header
 Incremental + resumable: each run only fetches bars NEWER than the last row
 already in a symbol's CSV, so a nightly job grows the dataset to "massive"
 without re-downloading. Per-symbol failures are logged and skipped, never fatal.
-Read-only against the broker (getCandleData) — it never places an order.
+Read-only against the broker (getCandleData): it never places an order.
 
     python -m quantsys.data.fetch_history --out data/nse \
         --interval FIVE_MINUTE --start 2021-01-01
@@ -69,9 +69,12 @@ def fetch_symbol(broker: AngelOneBroker, symbol: str, interval: str,
 
 
 def _ensure_tokens(broker: AngelOneBroker, cfg) -> None:
-    """The instrument master is the source of truth, but a few configured
-    symbols (index futures) aren't in it — fall back to their config token so
-    they can still be fetched."""
+    """Resolve every configured symbol on its configured exchange, so an NSE
+    equity is fetched from its NSE listing and not the master's bare-name BSE
+    row. A symbol the master does not list there falls back to its config
+    token, if it has one."""
+    for u in cfg.universe:
+        broker.resolve(u.symbol, u.exchange, u.kind)
     have = broker._instruments
     for u in cfg.universe:
         if (u.symbol not in have or not have[u.symbol].token) and u.token:
@@ -85,7 +88,7 @@ def main() -> None:
                         format="%(asctime)s %(levelname)s %(name)s %(message)s")
     # The SmartAPI SDK issues blocking HTTP calls with NO timeout of its own; a
     # half-open connection (e.g. the broker's weekend maintenance window) hangs
-    # generateSession/getCandleData forever — the 2026-06-28 quant-backtest
+    # generateSession/getCandleData forever: the 2026-06-28 quant-backtest
     # failure was exactly this (3h wall, <1s CPU, killed by systemd). A global
     # socket default turns any silent hang into a retryable error.
     import socket
@@ -112,7 +115,12 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     broker = AngelOneBroker()
-    broker.connect()
+    try:
+        broker.connect()
+    except BrokerError as e:
+        # missing or rejected credentials: one line, not a traceback
+        log.error("cannot connect to Angel One: %s (see .env.example)", e)
+        raise SystemExit(2) from None
     _ensure_tokens(broker, cfg)
 
     log.info("fetching %d symbols %s [%s .. %s] -> %s",

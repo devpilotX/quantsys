@@ -22,12 +22,32 @@ def test_future_stt_sell_side_only(cm):
     assert sell.stamp == 0.0
 
 
-def test_brokerage_flat_cap(cm):
+def test_fno_brokerage_is_a_flat_fee_per_order(cm):
+    """Angel One charges Rs 20 per executed F&O order, whatever its size."""
     fut = make_inst("F", kind=InstrumentKind.FUTURE)
-    big = cm.order_cost(fut, 1000, 1000.0, is_buy=True)
-    assert big.brokerage == 20.0  # min(20, 0.25% of 1e6)
-    small = cm.order_cost(fut, 1, 100.0, is_buy=True)
-    assert small.brokerage == pytest.approx(0.0025 * 100.0)
+    assert cm.order_cost(fut, 1000, 1000.0, is_buy=True).brokerage == 20.0
+    assert cm.order_cost(fut, 1, 100.0, is_buy=True).brokerage == 20.0
+
+
+@pytest.mark.parametrize("delivery", [True, False])
+@pytest.mark.parametrize("notional,expected", [
+    (1_000_000.0, 20.0),     # 0.1% is Rs 1,000: capped at Rs 20
+    (10_000.0, 10.0),        # 0.1%
+    (1_000.0, 5.0),          # 0.1% is Rs 1: the Rs 5 minimum
+])
+def test_equity_brokerage_follows_the_published_schedule(cm, delivery, notional, expected):
+    """min(Rs 20, 0.1%) with a Rs 5 minimum, for delivery and intraday alike.
+    Delivery was modelled as free; Angel One has charged it since 1 Nov 2024,
+    so every delivery trade the engine sized looked cheaper than it was."""
+    eq = make_inst("RELIANCE")
+    c = cm.order_cost(eq, 100, notional / 100, is_buy=True, delivery=delivery)
+    assert c.brokerage == pytest.approx(expected)
+
+
+def test_a_fixed_delivery_fee_can_still_be_configured():
+    free = CostModel(CostConfig(brokerage_delivery_flat=0.0))
+    eq = make_inst("RELIANCE")
+    assert free.order_cost(eq, 100, 1500.0, is_buy=True, delivery=True).brokerage == 0.0
 
 
 def test_gst_base(cm):
@@ -40,7 +60,7 @@ def test_equity_delivery_vs_intraday(cm):
     eq = make_inst("RELIANCE")
     deliv = cm.order_cost(eq, 100, 1500.0, is_buy=True, delivery=True)
     intra = cm.order_cost(eq, 100, 1500.0, is_buy=True, delivery=False)
-    assert deliv.brokerage == 0.0 and intra.brokerage > 0
+    assert deliv.brokerage == intra.brokerage == 20.0  # same schedule, both capped
     assert deliv.stt == pytest.approx(0.001 * 150000.0)  # both sides on delivery
     assert intra.stt == 0.0  # intraday STT is sell-side only
 

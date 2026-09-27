@@ -1,7 +1,7 @@
-"""NSE cash-market bhavcopy adapter — free, official, point-in-time.
+"""NSE cash-market bhavcopy adapter: free, official, point-in-time.
 
 Builds a survivorship-bias-free daily equity panel directly from NSE's public
-archive CDN (``nsearchives.nseindia.com``, which — unlike ``www.nseindia.com`` —
+archive CDN (``nsearchives.nseindia.com``, which, unlike ``www.nseindia.com``,
 serves these files without bot-protection). A symbol appears on a given day iff
 it actually traded that day, so the universe is point-in-time by construction:
 no look-ahead, no survivorship bias (delisted names are present in their era and
@@ -46,7 +46,7 @@ _MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "N
 
 # Normalised tidy schema produced by every parser. `prevclose` is NSE's
 # corporate-action-ADJUSTED previous close, so close/prevclose-1 is the
-# split/bonus/dividend-adjusted daily return — the basis for all factor returns.
+# split/bonus/dividend-adjusted daily return: the basis for all factor returns.
 COLUMNS = ["date", "symbol", "open", "high", "low", "close", "prevclose",
            "volume", "turnover", "isin"]
 
@@ -205,7 +205,7 @@ def build_panel(
     """Tidy long panel for [start, end] inclusive, fetching+caching per day.
 
     Skips weekends a priori; holidays are discovered (empty) and cached. Safe to
-    interrupt and resume — completed days are read from cache."""
+    interrupt and resume: completed days are read from cache."""
     cache_dir = Path(cache_dir)
     frames: list[pd.DataFrame] = []
     d, n, got = start, 0, 0

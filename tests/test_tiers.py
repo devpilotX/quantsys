@@ -1,3 +1,5 @@
+import math
+
 from quantsys.config.schema import TiersConfig
 from quantsys.core.types import ExecutionStyle
 from quantsys.portfolio.tiers import TierLadder
@@ -46,3 +48,16 @@ def test_interpolation_is_monotone_between_anchors():
         if prev is not None:
             assert cm <= prev  # cost gate relaxes smoothly as E grows
         prev = cm
+
+
+
+def test_unreadable_equity_holds_the_ladder():
+    ladder = TierLadder(TiersConfig())
+    assert ladder.resolve(6e7).name == "T5"
+    for bad in (float("nan"), float("inf"), None):
+        t = ladder.resolve(bad)
+        assert t.name == "T5"
+        assert all(math.isfinite(v) for v in (t.adv_cap_pct, t.min_cost_multiple,
+                                               t.rebalance_band, t.gross_leverage_cap))
+    assert ladder.resolve(6e7).name == "T5"
+    assert TierLadder(TiersConfig()).resolve(float("nan")).name == "T1"

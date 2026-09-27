@@ -3,7 +3,7 @@
 Security model (single operator, real money):
 - Session cookie: httpOnly, Secure, SameSite=Strict, sliding idle timeout +
   absolute lifetime.
-- CSRF: double-submit — a non-httpOnly csrf cookie must be echoed in the
+- CSRF: double-submit; a non-httpOnly csrf cookie must be echoed in the
   ``X-CSRF-Token`` header on every mutating request (SameSite=Strict already
   blocks classic CSRF; this is defence in depth).
 - High-risk actions additionally require a *fresh* re-authentication

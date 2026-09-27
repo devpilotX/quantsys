@@ -33,13 +33,13 @@ SESSION_CLOSE = (15, 30)
 # IST is the engine's single clock (see module docstring): every timestamp is
 # naive and means exchange wall-clock. ``now_ist`` is what the live data layer
 # stamps ticks/bars with so they bucket on the NSE session regardless of the
-# host/container timezone — the VPS runs in UTC, and using a bare datetime.now()
+# host/container timezone: the VPS runs in UTC, and using a bare datetime.now()
 # there silently shifts every bar by 5h30 and breaks session bucketing.
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
 def now_ist() -> datetime:
-    """Naive IST wall-clock — the one timestamp convention across the engine."""
+    """Naive IST wall-clock: the one timestamp convention across the engine."""
     return datetime.now(IST).replace(tzinfo=None)
 
 
@@ -91,6 +91,9 @@ class Instrument:
     sector: str | None = None
     adv: float | None = None    # average daily volume in units; refreshed daily
     margin_rate: float = 1.0    # fraction of notional blocked as margin
+    # The broker's own tradingsymbol when it differs from ``symbol``, e.g. the
+    # dated contract behind the rolling "NIFTY-FUT" alias. None: same as symbol.
+    broker_symbol: str | None = None
 
 
 @dataclass(frozen=True)

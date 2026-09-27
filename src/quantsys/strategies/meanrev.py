@@ -65,7 +65,7 @@ def _adf_pvalue(resid: np.ndarray) -> float | None:
     This is the gate the entire pairs sleeve depends on, so a failure must be
     *observable*. A bare `except Exception: return None` here would make a
     library contract change (or a degenerate residual) indistinguishable from
-    the honest answer "no cointegrated pair exists" — which is exactly the
+    the honest answer "no cointegrated pair exists": which is exactly the
     state this sleeve reports in production. Failures are logged and the
     exception types are narrowed to the genuine numerical ones.
     """
@@ -116,7 +116,7 @@ class MeanRevStrategy(Strategy):
             a_sym, b_sym = key.split("|")
             pa, pb = state.price(a_sym), state.price(b_sym)
             if not (math.isfinite(pa) and math.isfinite(pb) and pa > 0 and pb > 0):
-                # data gap: fail safe — flatten by not emitting; flat pairs drop
+                # data gap: fail safe; flatten by not emitting; flat pairs drop
                 if p["dir"] == 0:
                     del self._pairs[key]
                 else:
@@ -145,7 +145,7 @@ class MeanRevStrategy(Strategy):
                     p["cooldown"] = cfg.cooldown_bars
                     p["rearm"] = True   # no re-entry until z normalises
                 elif adverse_z <= cfg.z_exit:
-                    p["dir"] = 0  # mean reached — take profit
+                    p["dir"] = 0  # mean reached: take profit
                 elif p["bars_held"] > cfg.time_stop_half_lives * hl_decision_bars:
                     p["dir"] = 0  # OU clock expired; thesis stale
                     p["cooldown"] = cfg.cooldown_bars
@@ -195,7 +195,10 @@ class MeanRevStrategy(Strategy):
             if a in used or b in used or key in held:
                 continue
             prev = self._pairs.get(key)
+            # Carry the stop latch with the cooldown: dropping it re-entered a
+            # just-stopped pair on the rescan bar while |z| was still wide.
             fresh[key] = {**fit, "dir": 0, "cooldown": prev["cooldown"] if prev else 0,
+                          "rearm": bool(prev.get("rearm")) if prev else False,
                           "bars_held": 0, "entry_absz": 0.0, "stop_px": 0.0}
             used.update((a, b))
         # in-position pairs keep their frozen episode params; flat ones refresh
@@ -238,7 +241,7 @@ class MeanRevStrategy(Strategy):
             return None
         ratio = max(k1, k2) / max(min(k1, k2), 1e-12)
         if ratio > cfg.kappa_stability:
-            return None  # unstable reversion speed — reject (spec requirement)
+            return None  # unstable reversion speed: reject (spec requirement)
 
         return {
             "beta": beta,

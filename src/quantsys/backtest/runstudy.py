@@ -4,9 +4,10 @@ dashboard's backtest_runs table.
     python -m quantsys.backtest.runstudy --synthetic --bars 6000 --capital 50000000
     python -m quantsys.backtest.runstudy --replay data/nse --persist
 
-Honest-reporting contract: prints IS vs OOS, deflated Sharpe with the real
-n_trials from the sweep, and Monte-Carlo tails. Synthetic data is labelled as
-machine-validation only, never edge evidence.
+Honest-reporting contract: prints combined OOS beside the train-window shadow
+reference (a cold-start causal run, not an in-sample fit), deflated Sharpe
+with the real n_trials from the sweep, and Monte-Carlo tails. Synthetic data
+is labelled as machine-validation only, never edge evidence.
 """
 
 from __future__ import annotations
@@ -89,9 +90,10 @@ def main() -> None:
     full_m = compute_metrics(full.daily_equity(), full.trades, full.total_fees,
                              full.traded_notional, args.capital,
                              [s.gross for s in full.equity_curve],
-                             [s.equity for s in full.equity_curve])
+                             [s.equity for s in full.equity_curve],
+                             start=full.scored_from)
 
-    # walk-forward IS vs OOS
+    # walk-forward OOS, plus the train-window shadow reference
     wf = walk_forward(cfg, bars, args.capital, n_folds=args.folds, train_frac=0.5)
 
     # sensitivity sweep -> n_trials for deflation
@@ -106,28 +108,34 @@ def main() -> None:
     n_trials = max(1, sw.n_trials)
 
     oos = wf.combined_oos
-    dsr = deflated_sharpe(oos.get("sharpe"), oos.get("n_days", 0) * 1,
+    # T is the number of OOS returns; n_days counts equity points.
+    dsr = deflated_sharpe(oos.get("sharpe"), oos.get("n_returns", 0),
                           skew=oos.get("skew", 0.0),
                           kurtosis=oos.get("kurtosis", 3.0),
                           n_trials=n_trials)
-    mc = monte_carlo_resample(
-        [(datetime(d.year, d.month, d.day), v)
-         for d, v in {s.ts.date(): s.equity for s in wf.oos_curve}.items()],
-        n_paths=1000)
+    # same returns as combined_oos, first OOS day included
+    mc = monte_carlo_resample(wf.oos_daily_equity(), n_paths=1000)
 
     print("\n## Full-sample")
     print(_fmt(full_m, "cagr", "sharpe", "sortino", "calmar", "max_dd",
                "time_in_dd", "n_trades", "hit_rate", "profit_factor",
                "cost_drag_bps", "turnover_x_per_year"))
-    print("\n## Walk-forward (pooled IS vs combined OOS)")
-    print("IS  ", _fmt(wf.pooled_is, "cagr", "sharpe", "max_dd"))
-    print("OOS ", _fmt(oos, "cagr", "sharpe", "sortino", "max_dd", "n_trades",
-                       "hit_rate", "cost_drag_bps"))
-    if wf.pooled_is.get("sharpe") and oos.get("sharpe"):
+    # The "IS" row is a cold-start causal run over the train windows, not an
+    # in-sample fit, so the difference below is not an overfitting measure.
+    print("\n## Walk-forward (train-window shadow vs combined OOS)")
+    print("SHADOW", _fmt(wf.pooled_is, "cagr", "sharpe", "max_dd"))
+    print("OOS   ", _fmt(oos, "cagr", "sharpe", "sortino", "max_dd", "n_trades",
+                         "hit_rate", "cost_drag_bps"))
+    if wf.pooled_is.get("sharpe") is not None and oos.get("sharpe") is not None:
         deg = wf.pooled_is["sharpe"] - oos["sharpe"]
-        print(f"IS->OOS Sharpe degradation: {deg:+.2f}")
+        print(f"shadow minus OOS Sharpe: {deg:+.2f} (cold start on earlier bars vs "
+              "the carried engine; not in-sample vs out-of-sample)")
     print(f"deflated Sharpe (n_trials={n_trials}): "
           f"{dsr:.3f}" if dsr is not None else "deflated Sharpe: —")
+    if sw.failures:
+        # counted in n_trials, so the deflation above already charges for them
+        print(f"  of n_trials={n_trials}, {len(sw.failures)} sweep variant(s) could not "
+              "be configured: " + "; ".join(sw.failures))
     print("\n## Per fold (OOS)")
     for f in wf.folds:
         print(f"  fold {f.index}: {f.test_start.date()}→{f.test_end.date()}  "
@@ -153,13 +161,23 @@ def _verdict(is_synth: bool, oos: dict, dsr: float | None, mc: dict) -> str:
         return "Insufficient OOS data to judge. Gate CLOSED."
     sharpe = oos["sharpe"]
     p_neg = mc.get("p_sharpe_negative", 1.0)
+    cagr = oos.get("cagr")
+    # Every fill is charged its fees and square-root impact, so the Sharpe,
+    # deflated Sharpe and bootstrap above are already net of costs. The old
+    # check here, cost_drag_bps < sharpe * 1e9, held for any positive Sharpe.
+    # The documented cost criterion is net-of-cost CAGR > 0 on the hold-out
+    # (docs/COMBINE_SURVIVORS.md, docs/FORWARD_STUDY.md): Sharpe is measured
+    # on arithmetic returns and does not imply the compounded result is
+    # positive. livegate.py enforces the other three thresholds.
     ok = (sharpe > 0.8 and (dsr is not None and dsr > 0.95)
-          and p_neg < 0.10 and oos.get("cost_drag_bps", 1e9) < sharpe * 1e9)
+          and p_neg < 0.10 and cagr is not None and cagr > 0)
     if ok:
         return (f"OOS Sharpe {sharpe:.2f}, deflated p={dsr:.3f}, "
-                f"P(SR<0)={p_neg:.2f}: edge is positive and robust after costs. "
+                f"P(SR<0)={p_neg:.2f}, net CAGR {cagr:.2%}: edge is positive and "
+                "robust after costs. "
                 "Eligible for tiny-capital go-live via the dashboard safety chain.")
-    return (f"OOS Sharpe {sharpe:.2f}, deflated p={dsr}, P(SR<0)={p_neg:.2f}: "
+    return (f"OOS Sharpe {sharpe:.2f}, deflated p={dsr}, P(SR<0)={p_neg:.2f}, "
+            f"net CAGR {cagr}: "
             "NOT robust after costs/deflation. Do NOT go live. Fix or cut the "
             "weak strategies first.")
 
@@ -179,6 +197,9 @@ def _persist(args, source, cfg, full, full_m, wf, oos, dsr, mc, n_trials, verdic
     metrics = {
         "source": source, "is_synthetic": bool(args.synthetic),
         "full": full_m, "oos": oos, "is": wf.pooled_is,
+        "is_basis": ("train-window shadow: a fresh engine run causally over each "
+                     "fold's train window, returns pooled once per date; not an "
+                     "in-sample fit"),
         "sharpe_oos": oos.get("sharpe"), "sharpe_deflated": dsr,
         "max_dd": oos.get("max_dd"), "monte_carlo": mc,
         "n_trials": n_trials, "verdict": verdict,

@@ -1,4 +1,4 @@
-"""Pillar 4 / brief sec.6 — meanrev cointegration DIAGNOSIS (daily timeframe).
+"""Pillar 4 / brief sec.6: meanrev cointegration DIAGNOSIS (daily timeframe).
 
 Question to answer BEFORE any z-threshold grid: is meanrev's dormancy a wrong
 threshold or an ABSENCE of qualifying cointegrated pairs? A z-threshold cannot

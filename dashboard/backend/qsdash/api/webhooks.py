@@ -4,11 +4,17 @@
   ``X-QS-Signature`` header (hex). Angel One's native postback doesn't sign,
   so on the VPS nginx exposes this endpoint only on a secret path and the
   engine's postback registration includes that path + the relay adds the HMAC.
-  Defense: signature required whenever a secret is configured.
+  Fails closed: with no secret configured every postback is refused (503),
+  because a postback books fills. The only exception is the explicit
+  dev-only flag angel_webhook_allow_unsigned, honoured only when env == "dev".
 - idempotency: (source, external_id) unique in webhook_events; duplicates are
-  acknowledged but not re-processed.
+  acknowledged but not re-processed. A postback for an order we do not know
+  yet (it can race its own order row) does not consume its dedup key, so
+  Angel's re-delivery is processed.
 - effect: order status/fill update persisted, reconciled against our order
-  by broker_order_id / client order id, event published.
+  by broker_order_id / client order id, event published. averageprice is
+  Angel's cumulative average: each new fill is booked at the incremental
+  price of the shares it adds.
 """
 
 from __future__ import annotations
@@ -17,8 +23,10 @@ import hashlib
 import hmac
 import json
 import logging
+import math
 
 from fastapi import APIRouter, HTTPException, Request
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from qsdash.bus import make_sync_publisher
@@ -44,21 +52,42 @@ _STATUS_MAP = {
 }
 
 
-def _verify_signature(raw: bytes, signature: str) -> bool:
-    if not settings.angel_webhook_secret:
-        # dev convenience only; prod MUST set the secret (deploy checklist)
-        return True
-    expected = hmac.new(
-        settings.angel_webhook_secret.encode(), raw, hashlib.sha256
-    ).hexdigest()
-    return hmac.compare_digest(expected, signature or "")
+def _verify_signature(raw: bytes, signature: str) -> None:
+    """Raises unless the body is authentic. No secret means no postbacks."""
+    secret = settings.angel_webhook_secret
+    if not secret:
+        if settings.angel_webhook_allow_unsigned and settings.env == "dev":
+            log.warning("accepting an UNSIGNED postback: angel_webhook_allow_unsigned "
+                        "is on (dev only)")
+            return
+        raise HTTPException(503, "postback disabled: no secret configured")
+    expected = hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
+    # bytes, so a non-ASCII header is a mismatch rather than a TypeError
+    if not hmac.compare_digest(expected.encode(), (signature or "").encode()):
+        raise HTTPException(401, "bad signature")
+
+
+def _increment_price(db, order: OrderRow, filled: int, avg_px: float,
+                     new_qty: int) -> float:
+    """Price of the ``new_qty`` shares this postback adds. Angel reports the
+    cumulative average over all ``filled`` shares, so the increment traded at
+    (avg * filled - prev_avg * prev_filled) / new_qty, with prev_avg the
+    average of the fills already booked for this order."""
+    prev_filled = order.filled_qty or 0
+    if prev_filled <= 0:
+        return avg_px
+    qty_booked, notional_booked = (
+        db.query(func.sum(func.abs(FillRow.qty)),
+                 func.sum(func.abs(FillRow.qty) * FillRow.price))
+        .filter(FillRow.order_id == order.id).one())
+    prev_avg = notional_booked / qty_booked if qty_booked else avg_px
+    return (avg_px * filled - prev_avg * prev_filled) / new_qty
 
 
 @router.post("/angelone")
 async def angelone_postback(request: Request):
     raw = await request.body()
-    if not _verify_signature(raw, request.headers.get("X-QS-Signature", "")):
-        raise HTTPException(401, "bad signature")
+    _verify_signature(raw, request.headers.get("X-QS-Signature", ""))
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError:
@@ -99,8 +128,14 @@ async def angelone_postback(request: Request):
 
         if order is None:
             # An order we don't know is a reconciliation red flag, not noise.
-            ev.status = "ignored"
-            ev.error = "no matching internal order"
+            # It can also be a postback racing its own order row, so release
+            # the dedup key (a re-delivery must be processed, not swallowed as
+            # a duplicate) and keep the forensic row under a key of its own.
+            db.rollback()
+            db.add(WebhookEvent(
+                source="angelone",
+                external_id=f"{dedup_key}:unmatched:{now_ist().timestamp()}",
+                payload=payload, status="ignored", error="no matching internal order"))
             db.commit()
             _publisher.publish("risk", {
                 "kind": "unknown_broker_order", "broker_order_id": ext_id,
@@ -108,9 +143,16 @@ async def angelone_postback(request: Request):
             })
             return {"ok": True, "matched": False}
 
+        filled = int(float(payload.get("filledshares", 0) or 0))
+        avg_px = float(payload.get("averageprice", 0) or 0)
+        if not math.isfinite(avg_px):
+            raise ValueError(f"averageprice {payload.get('averageprice')!r} is not finite")
+
         order.broker_order_id = ext_id
         hist = list(order.status_history or [])
-        hist.append({"ts": now_ist().isoformat(), "status": raw_status, "via": "postback"})
+        # the order row keeps Angel's cumulative figures; fills carry increments
+        hist.append({"ts": now_ist().isoformat(), "status": raw_status, "via": "postback",
+                     "filled": filled, "avg_price": avg_px})
         order.status_history = hist
         order.updated_at = now_ist()
         if mapped:
@@ -118,16 +160,24 @@ async def angelone_postback(request: Request):
         if mapped == "REJECTED":
             order.reject_reason = str(payload.get("text", "") or payload.get("message", ""))
 
-        filled = int(float(payload.get("filledshares", 0) or 0))
-        avg_px = float(payload.get("averageprice", 0) or 0)
         new_qty = filled - order.filled_qty
         if new_qty > 0 and avg_px > 0:
+            px = _increment_price(db, order, filled, avg_px, new_qty)
+            if not (math.isfinite(px) and px > 0):
+                # inconsistent cumulative averages: keep the quantity right
+                # (the book is what reconciles) and flag the price
+                log.error("postback %s: incremental price %r is not positive; "
+                          "booking %d at the cumulative %.4f", ext_id, px, new_qty, avg_px)
+                _publisher.publish("risk", {
+                    "kind": "fill_price_inconsistent", "broker_order_id": ext_id,
+                    "incremental_price": px, "average_price": avg_px})
+                px = avg_px
             signed = new_qty if order.side == "BUY" else -new_qty
             db.add(FillRow(
                 order_id=order.id, client_order_id=order.client_order_id,
                 ts=now_ist(), mode=order.mode, symbol=order.symbol,
-                strategy=order.strategy, qty=signed, price=avg_px,
-                slippage=(avg_px - order.ref_price) * (1 if order.side == "BUY" else -1)
+                strategy=order.strategy, qty=signed, price=px,
+                slippage=(px - order.ref_price) * (1 if order.side == "BUY" else -1)
                 if order.ref_price else 0.0,
             ))
             order.filled_qty = filled
@@ -138,7 +188,7 @@ async def angelone_postback(request: Request):
         _publisher.publish("orders", {
             "id": order.id, "client_order_id": order.client_order_id,
             "symbol": order.symbol, "status": order.status,
-            "filled_qty": order.filled_qty, "via": "postback",
+            "filled_qty": order.filled_qty, "avg_price": avg_px, "via": "postback",
         })
         return {"ok": True, "matched": True, "status": order.status}
     except HTTPException:

@@ -1,8 +1,9 @@
 """TargetBook: the mutable proposal that flows through the sizing/risk
 pipeline. Components keep (strategy, group) attribution; every scaling
 operation is GROUP-JOINT so multi-leg trades keep their hedge ratios under
-any cap. All scalings are monotone-decreasing, so a single ordered pass of
-risk rules cannot re-violate an earlier cap.
+any cap. All scalings are monotone-decreasing. Caps are measured on the net
+per symbol, so shrinking a group can still raise the net of a symbol it was
+offsetting; finalize re-verifies the caps on the lot-rounded targets.
 """
 
 from __future__ import annotations

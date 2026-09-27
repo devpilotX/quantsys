@@ -5,7 +5,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiGet, apiPost } from "@/lib/api";
-import { fmtCompact, fmtNum, fmtPct, fmtTs } from "@/lib/format";
+import { fmtCompact, fmtNum, fmtTs } from "@/lib/format";
 import { AuditTrail, type AuditEvent } from "@/components/audit";
 import { useReauthAction } from "@/components/reauth";
 import { Badge, Button, Card, Gauge, Table, Td } from "@/components/ui";

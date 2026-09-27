@@ -1,4 +1,4 @@
-"""Pillar 4 / brief sec.6 — meanrev z x lookback grid RE-TEST (net of cost).
+"""Pillar 4 / brief sec.6: meanrev z x lookback grid RE-TEST (net of cost).
 
 Pre-registered (docs/PILLAR4_EVENT_DRIVEN.md sec.5): z_entry in {1.0,1.5,2.0,2.5}
 x lookback in {250,500,750} = 12 trials. Select on IS (2017-2023) walk-forward,

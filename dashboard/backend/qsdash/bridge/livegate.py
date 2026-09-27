@@ -1,4 +1,4 @@
-"""The live-trading gate — engine-side, defence in depth.
+"""The live-trading gate: engine-side, defence in depth.
 
 The dashboard already enforces the operator chain (re-auth + typed phrase +
 deployable cap + clean book) before it queues set_mode(live). This gate is the
@@ -7,9 +7,12 @@ live. All conditions must hold:
 
 1. A live execution adapter is attached and connected (paper runner => never).
 2. The operator has explicitly armed live trading out-of-band
-   (QS_LIVE_ARMED=1 in the engine's environment — not settable from the UI).
+   (QS_LIVE_ARMED=1 in the engine's environment: not settable from the UI).
 3. The backtester gate passed: a NON-synthetic backtest_runs row exists whose
    metrics clear the robustness bar (positive deflated OOS Sharpe, low P(SR<0)).
+4. The order postback is authenticated: ANGEL_WEBHOOK_SECRET is set, at least
+   32 characters, and not the deploy/.env.example placeholder. The postback
+   books fills, so a guessable secret lets anyone rewrite the live book.
 
 Synthetic-only history => condition 3 fails => live is refused. This is the
 "do not go live until honest OOS edge is shown" rule, enforced in code.
@@ -22,12 +25,30 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+from qsdash.config import settings
 from qsdash.models import BacktestRun
 
 # robustness thresholds (documented in DECISIONS); conservative on purpose
 MIN_OOS_SHARPE = 0.8
 MIN_DEFLATED = 0.95
 MAX_P_SHARPE_NEG = 0.10
+
+ARMED_VALUES = ("1", "true", "TRUE", "yes")
+
+MIN_WEBHOOK_SECRET_LEN = 32
+# the value deploy/.env.example ships with; a box that kept it has no secret
+WEBHOOK_SECRET_PLACEHOLDER = "generate_another_long_random_secret"
+
+
+def webhook_secret_problem(secret: str) -> str | None:
+    """Why ``secret`` cannot protect the order postback, or None if it can."""
+    if not secret:
+        return "is not set"
+    if secret == WEBHOOK_SECRET_PLACEHOLDER:
+        return "is still the deploy/.env.example placeholder"
+    if len(secret) < MIN_WEBHOOK_SECRET_LEN:
+        return f"is shorter than {MIN_WEBHOOK_SECRET_LEN} characters"
+    return None
 
 
 @dataclass
@@ -38,7 +59,7 @@ class GateStatus:
 
 
 def backtest_gate(db: Session) -> GateStatus:
-    """Condition 3 only — usable standalone by the dashboard to show status."""
+    """Condition 3 only: usable standalone by the dashboard to show status."""
     runs = (db.query(BacktestRun).order_by(BacktestRun.id.desc()).limit(50).all())
     real = [r for r in runs if not (r.metrics or {}).get("is_synthetic", True)]
     if not real:
@@ -49,9 +70,11 @@ def backtest_gate(db: Session) -> GateStatus:
         sharpe = m.get("sharpe_oos")
         deflated = m.get("sharpe_deflated")
         p_neg = (m.get("monte_carlo") or {}).get("p_sharpe_negative")
+        # every threshold must be present and met: a run missing a metric
+        # (say, one stored without its Monte-Carlo block) proves nothing
         if (sharpe is not None and sharpe >= MIN_OOS_SHARPE
                 and deflated is not None and deflated >= MIN_DEFLATED
-                and (p_neg is None or p_neg <= MAX_P_SHARPE_NEG)):
+                and p_neg is not None and p_neg <= MAX_P_SHARPE_NEG):
             return GateStatus(True, [], passing_run_id=r.id)
     return GateStatus(False, [
         f"newest real backtest does not clear the robustness bar "
@@ -67,9 +90,13 @@ def live_gate(db: Session, *, adapter_present: bool,
                        "trade real money)")
     elif not adapter_connected:
         reasons.append("live execution adapter not connected to the broker")
-    if os.environ.get("QS_LIVE_ARMED", "") not in ("1", "true", "TRUE", "yes"):
+    if os.environ.get("QS_LIVE_ARMED", "") not in ARMED_VALUES:
         reasons.append("QS_LIVE_ARMED is not set in the engine environment "
                        "(operator must arm live trading out-of-band)")
+    problem = webhook_secret_problem(settings.angel_webhook_secret)
+    if problem is not None:
+        reasons.append(f"ANGEL_WEBHOOK_SECRET {problem}: the fill postback would be "
+                       "open to forgery")
     bt = backtest_gate(db)
     if not bt.allowed:
         reasons.extend(bt.reasons)

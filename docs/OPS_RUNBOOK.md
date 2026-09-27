@@ -1,97 +1,86 @@
-# quantsys — Operations Runbook (security & resilience)
+# Operations runbook
 
-Procedural only — **no secret values here**. Actual secrets live in the gitignored
-`VPS_DEPLOYMENT_REPORT.md` (repo root) and `/opt/quant/deploy/.env` (VPS, mode 600).
-Status as of 2026-06-17 in **[brackets]** per item.
+Procedures for running quantsys on the VPS. No secret values belong here:
+secrets live in `/opt/quant/deploy/.env` on the VPS (mode 600) and nowhere in
+the repository. [DEPLOY.md](DEPLOY.md) covers the first deploy and
+[GOLIVE.md](GOLIVE.md) the steps before live money.
 
----
+## Status
 
-## 1. Angel One credential rotation  **[REQUIRED before any live money — leaked 2026-06-11]**
+| Item | State | Since |
+|---|---|---|
+| Repository free of secrets (tree and history) | verified with `git grep`, `git log -S` and gitleaks | 2026-06-17 |
+| Angel One credential rotation | pending, blocks live trading | exposed 2026-06-11 |
+| Dashboard operator TOTP | configured, login tested end to end over TLS | 2026-06-12 |
+| On-box database dumps | every 6 hours, 14 kept | 2026-06-17 |
+| Restore drill | passed | 2026-06-17 |
+| Off-box backup | daily encrypted dump to the operator's Telegram chat (`quant-offbox.timer`) | 2026-07-03 |
 
-The repo is **confirmed secret-free** (API key / client code are not in the working
-tree or git history; only `deploy/.env.example`, a placeholder template, is tracked —
-verified 2026-06-17 via `git grep` + `git log -S`). So **no git-history scrub is needed** —
-only the live credentials must be rotated, because they were briefly public.
+## Rotate the Angel One credentials
 
-Human steps (in the Angel One SmartAPI / portal — the agent cannot do these):
-1. **API key:** SmartAPI dashboard → regenerate the app's API key (invalidates the old one).
-2. **MPIN/PIN:** Angel One app/web → change the login PIN.
-3. **TOTP:** disable + re-enrol the authenticator → you get a **new TOTP secret** (and a new
-   otpauth URI). Save it.
-4. **VPS:** edit `/opt/quant/deploy/.env` → update `ANGEL_API_KEY`, `ANGEL_CLIENT_CODE`
-   (unchanged), `ANGEL_PASSWORD` (new MPIN), `ANGEL_TOTP_SECRET` (new). Keep mode 600.
-5. Restart: `cd /opt/quant/deploy && sudo docker compose --profile paper up -d engine-paper`.
-6. Verify: engine log shows `Angel One connected; … instruments`. Update
-   `VPS_DEPLOYMENT_REPORT.md` §7 with the new values.
-7. **Whitelist:** confirm the SmartAPI app's allowed IP still equals the VPS IP
-   (80.225.240.46).
+Required before any live money. The credentials were briefly public on
+2026-06-11 ([SECURITY.md](../SECURITY.md)); they never entered this repository,
+so no history rewrite is needed, only rotation. These steps happen in Angel
+One's own portals and need the account holder:
 
----
+1. SmartAPI dashboard: regenerate the app's API key, which invalidates the old
+   one.
+2. Angel One app or web: change the login PIN.
+3. Disable and re-enrol the authenticator to get a new TOTP secret.
+4. On the VPS, edit `/opt/quant/deploy/.env`: `ANGEL_API_KEY`, `ANGEL_PASSWORD`
+   (the new PIN) and `ANGEL_TOTP_SECRET`. `ANGEL_CLIENT_CODE` does not change.
+   Keep the file at mode 600.
+5. Restart the engine:
+   `cd /opt/quant/deploy && sudo docker compose --profile paper up -d engine-paper`.
+6. Check the engine log for `Angel One connected`.
+7. Confirm the SmartAPI app's allowed IP still matches the VPS's public IP
+   (`WHITELISTED_IP` in `deploy/scripts/preflight.py`, which checks it).
 
-## 2. Telegram alerts  **[DEFERRED — blocked by the regional India Telegram ban (upstream network), 2026-06-18]**
+## Alerts
 
-Token + chat-id ARE now set in the VPS `.env` and the wiring is verified correct
-(`channels_configured() == ['telegram']`), but **delivery fails from the VPS**:
-`api.telegram.org` is network-unreachable (TCP timeout to `149.154.x` / `91.108.x`, IPv4 &
-IPv6) while general egress works (`google.com` → 200). No host firewall rule blocks it — the
-block is **upstream** (the India Telegram ban). `notify.py` still POSTs to
-`api.telegram.org/bot<token>/sendMessage`; alerts persist & show in the dashboard regardless.
-**Re-test after the 22nd; if still blocked, switch the alert channel to email/webhook**
-(`notify.py` is channel-pluggable). Setup steps (already done) for reference:
+`qsdash/notify.py` sends alerts to Telegram when `TELEGRAM_BOT_TOKEN` and
+`TELEGRAM_CHAT_ID` are set in `deploy/.env`; every alert is also stored and
+shown on the dashboard's logs page whether or not delivery works. The daily
+self-check pushes RED and WARN results to the same chat.
 
-1. In Telegram, message **@BotFather** → `/newbot` → get the **bot token**.
-2. Start a chat with your new bot (send it any message), then get your **chat id**
-   (e.g. message **@userinfobot**, or `https://api.telegram.org/bot<token>/getUpdates`).
-3. VPS `/opt/quant/deploy/.env`: set `TELEGRAM_BOT_TOKEN=…`, `TELEGRAM_CHAT_ID=…`.
+In June 2026 `api.telegram.org` was unreachable from the VPS while other
+egress worked, so a delivery failure there is a network problem before it is a
+configuration one. To set up a bot from scratch:
+
+1. Message @BotFather, send `/newbot`, and keep the bot token.
+2. Send the new bot any message, then read your chat id from
+   `https://api.telegram.org/bot<token>/getUpdates`.
+3. Set both values in `/opt/quant/deploy/.env`.
 4. `sudo docker compose --profile paper up -d engine-paper api`.
-5. Verify delivery: trigger any alert (e.g. restart the engine → an `engine_start` alert
-   fires) and confirm the Telegram message arrives. (Agent can wire+test this step once
-   you provide a token.)
+5. Restart the engine; it raises an `engine_start` alert, which should arrive.
 
----
+## Dashboard operator login
 
-## 3. Dashboard operator TOTP  **[configured ✓; login e2e-verified at deploy]**
+Every operator has TOTP (`users.totp_secret` is NOT NULL). Consecutive failed
+logins lock the account for a cooldown; a password reset clears the lock:
 
-`users.totp_secret` is NOT NULL (every operator has TOTP). The 2026-06-12 deploy ran a
-26/26 e2e incl. a real password+TOTP login over public TLS.
-- Re-enrol authenticator: scan/enter the otpauth URI in `VPS_DEPLOYMENT_REPORT.md` §7.
-- Reset password if needed: `cd /opt/quant/deploy && sudo docker compose run --rm api
-  python -m qsdash.cli reset-password --username dipanshu`.
-- **Lockout note:** consecutive failed logins lock the account for a cooldown; a password
-  reset clears it.
+```bash
+cd /opt/quant/deploy
+sudo docker compose run --rm api python -m qsdash.cli reset-password --username NAME
+```
 
----
+## Backups
 
-## 4. Backups  **[on-VPS dumps ✓ (6-hourly, 14 kept); restore drill ✓; off-VPS = 1 user step]**
+On-box dumps run every 6 hours and the newest 14 are kept in `deploy/backups/`.
+`quant-offbox.timer` runs `deploy/scripts/offbox_backup.sh` daily at 20:00 IST:
+a fresh `pg_dump`, encrypted with `BACKUP_PASSPHRASE` from `deploy/.env`, sent
+to the operator's Telegram chat. The script's header has the decrypt command.
+`selfcheck.sh` goes RED if the last off-box backup is older than 26 hours.
 
-- **Restore drill — PASSED 2026-06-17:** the newest dump restored cleanly into a temp DB
-  (21 tables, decisions present), temp DB dropped. The dumps are valid & restorable. To
-  repeat:
-  ```bash
-  cd /opt/quant/deploy; D=$(ls -t backups/*.dump | head -1)
-  sudo docker compose exec -T postgres psql -U quantsys -d postgres -c "CREATE DATABASE qs_restore_test;"
-  sudo docker compose exec -T postgres pg_restore -U quantsys -d qs_restore_test --no-owner < "$D"
-  sudo docker compose exec -T postgres psql -U quantsys -d qs_restore_test -c "SELECT count(*) FROM decisions;"
-  sudo docker compose exec -T postgres psql -U quantsys -d postgres -c "DROP DATABASE qs_restore_test;"
-  ```
-  Production restore (overwrites live): `deploy/scripts/restore.sh backups/<file>.dump`.
-- **Off-VPS copy — still the one pending item** (the VPS cannot push to your PC; run this
-  *from your PC*, where the deploy key / SSH to the VPS lives):
-  ```bash
-  rsync -az mcpagent@80.225.240.46:/opt/quant/deploy/backups/ ~/quantsys-backups/
-  ```
-  Schedule it (Windows Task Scheduler / cron) daily. A VPS disk is **not** a backup.
+To repeat the restore drill against a scratch database:
 
----
+```bash
+cd /opt/quant/deploy; D=$(ls -t backups/*.dump | head -1)
+sudo docker compose exec -T postgres psql -U quantsys -d postgres -c "CREATE DATABASE qs_restore_test;"
+sudo docker compose exec -T postgres pg_restore -U quantsys -d qs_restore_test --no-owner < "$D"
+sudo docker compose exec -T postgres psql -U quantsys -d qs_restore_test -c "SELECT count(*) FROM decisions;"
+sudo docker compose exec -T postgres psql -U quantsys -d postgres -c "DROP DATABASE qs_restore_test;"
+```
 
-## Quick status table
-
-| Item | Status |
-|---|---|
-| Repo secret-free (tree + history) | ✅ verified |
-| Angel cred rotation | ⛔ **pending** (human portal steps above) — blocking for live |
-| Telegram alerts | 🟡 **deferred** — India ban (upstream network block); creds set + wiring verified; re-test after the 22nd or switch to email/webhook |
-| Dashboard TOTP | ✅ configured + e2e-verified |
-| On-VPS backups (6-hourly) | ✅ working |
-| Backup restore drill | ✅ passed |
-| Off-VPS backup copy | 🟡 1 user step (rsync from PC) |
+A production restore overwrites the live database:
+`deploy/scripts/restore.sh backups/<file>.dump`.

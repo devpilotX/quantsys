@@ -44,7 +44,7 @@ reformat in their own commits.
 **2. A cost charged in the gate must be charged on the fill.** The cost gate
 decides whether a trade is worth doing; the fill decides what it cost. If these
 disagree, the backtest manufactures edge. This has already happened once
-(market impact). Both paths read from `Decision.sigma_daily` now — keep it that
+(market impact). Both paths read from `Decision.sigma_daily` now; keep it that
 way.
 
 **3. No look-ahead, and prove it.** A decision on bar `t` may use only
@@ -112,5 +112,5 @@ could not. "Should work" is not a test result.
 `pyproject.toml` disables a handful of ruff rules with a comment explaining each.
 Those are staged for removal, not waived: `B905` (zip strict), `B904` (raise
 from), `UP042` (StrEnum, which would silently change JSON/Postgres
-serialisation), `SIM115`. Do not add new violations of them — they are tolerated
+serialisation), `SIM115`. Do not add new violations of them: they are tolerated
 only in code that predates linting.

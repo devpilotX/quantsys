@@ -13,6 +13,7 @@ from __future__ import annotations
 import threading
 import time
 
+from quantsys.execution import marketdata
 from quantsys.execution.marketdata import AngelWebSocketFeed, BarAggregator
 
 
@@ -108,3 +109,72 @@ def test_session_close_parks_connected_feed():
         assert feed.parked
     finally:
         feed.stop()
+
+
+
+def _freshly_booted(monkeypatch, uptime_s: float = 1.0) -> None:
+    """Make the feed module's monotonic clock read as if the host booted
+    ``uptime_s`` seconds ago. GitHub runners are new VMs, so this is the
+    clock the suite actually sees in CI."""
+    real = time.monotonic
+    t0 = real()
+
+    class _Clock:
+        def __getattr__(self, name):
+            return getattr(time, name)
+
+        @staticmethod
+        def monotonic() -> float:
+            return real() - t0 + uptime_s
+
+    monkeypatch.setattr(marketdata, "time", _Clock())
+
+
+def test_resume_reauths_on_a_freshly_booted_host(monkeypatch):
+    """Regression: 'never re-authed' was stored as monotonic 0.0, so on a host
+    up for less than reauth_min_interval (300s) the first refresh was skipped
+    and the feed reconnected with a stale token."""
+    _freshly_booted(monkeypatch)
+    active = [False]
+    socks: list = []
+    reauths: list = []
+    feed = _make_feed(active, socks, reauths)
+    feed.start()
+    time.sleep(0.1)
+    active[0] = True
+    deadline = time.monotonic() + 3.0
+    while not (socks and reauths) and time.monotonic() < deadline:
+        time.sleep(0.01)
+    try:
+        assert len(reauths) == 1, "first resume must refresh the token"
+        assert socks, "feed must reconnect when the window opens"
+    finally:
+        feed.stop()
+
+
+def test_reconnect_reauths_on_a_freshly_booted_host(monkeypatch):
+    """Same defect on the socket-down path: the first reconnect must refresh
+    the token even when the host has been up for only a second."""
+    _freshly_booted(monkeypatch)
+    reauths: list = []
+
+    class _DeadSock(_SilentSock):
+        def connect(self) -> None:
+            return  # dies immediately, so the supervisor takes the reconnect path
+
+    agg = BarAggregator(5, lambda _sym, _bar: None)
+    feed = AngelWebSocketFeed(
+        auth_token="a", api_key="k", client_code="c", feed_token="f",
+        tokens_by_exchange={"NSE": ["1"]}, aggregator=agg,
+        token_to_symbol={"1": "X"},
+        reauth=lambda: reauths.append(1) or {},
+        ws_factory=lambda *_a: _DeadSock(),
+        is_open=lambda: False, active_fn=lambda: True,
+        initial_backoff=0.01, max_backoff=0.02,
+    )
+    feed.start()
+    deadline = time.monotonic() + 3.0
+    while not reauths and time.monotonic() < deadline:
+        time.sleep(0.01)
+    feed.stop()
+    assert reauths == [1], "the first reconnect must refresh the token once"

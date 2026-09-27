@@ -25,6 +25,12 @@ docker compose run --rm api python -m qsdash.cli create-operator --username <you
 docker compose up -d                     # everything else
 ```
 
+Updating to a version that adds a migration (the `engine_state` table is one):
+run `docker compose run --rm api python -m qsdash.cli init-db` before
+restarting the engine. It applies pending migrations and is safe to repeat.
+Without the table the engine still runs, but logs an error at every save and
+starts cold after each restart.
+
 Login at https://quant.devpilotx.com. Default mode is PAPER.
 
 ## 2. Operations
@@ -40,14 +46,17 @@ Login at https://quant.devpilotx.com. Default mode is PAPER.
 | reset operator password | `docker compose run --rm api python -m qsdash.cli reset-password --username <you>` |
 
 Off-VPS backup copy: add a cron on another machine:
-`rsync -az vps:/path/Quant/deploy/backups/ ./quantsys-backups/` — do not skip
+`rsync -az vps:/path/Quant/deploy/backups/ ./quantsys-backups/`; do not skip
 this; a VPS disk is not a backup.
 
 ## 3. Security checklist before going live (real money)
 
-- [ ] `ANGEL_WEBHOOK_SECRET` set and the postback relay signs requests
+- [ ] `ANGEL_WEBHOOK_SECRET` set (32+ random characters) and the postback
+      relay signs requests; without it every postback is refused
+- [ ] Read-only console role created and `CONSOLE_DATABASE_URL` set on the api
+      service (SQL in `dashboard/backend/qsdash/api/dbadmin.py`)
 - [ ] `/dbadmin` IP allowlist enabled in `nginx/quant.conf` (it ships
-      commented out — pgweb has NO auth of its own)
+      commented out: pgweb has NO auth of its own)
 - [ ] Optional `IP_ALLOWLIST` for the whole dashboard in `.env`
 - [ ] Rotate any credential that ever touched a repo or chat
 - [ ] `docker compose exec api python -c "from qsdash.config import settings; assert settings.cookie_secure"`

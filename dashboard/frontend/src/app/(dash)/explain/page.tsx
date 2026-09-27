@@ -1,6 +1,6 @@
 "use client";
 
-/** Trade explainability — the centerpiece. Pick any trade: why entered
+/** Trade explainability: the centerpiece. Pick any trade: why entered
  * (signal, regime, full sizing math) and why exited, straight from the
  * persisted decision audit trail. */
 

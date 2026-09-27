@@ -22,7 +22,7 @@ def raise_alert(db: Session, *, severity: str, kind: str, title: str,
     """Persist an alert row, queue delivery, publish to the live stream.
 
     Delivery happens off-thread (see notify.enqueue_delivery) and writes its
-    outcome back onto the row, so a slow channel never blocks the caller — the
+    outcome back onto the row, so a slow channel never blocks the caller: the
     engine raises alerts from its decision/fill loop. An undeliverable alert
     still lands in the DB and the UI.
     """
@@ -46,7 +46,7 @@ def notify_alert(publisher, *, severity: str, kind: str, title: str,
     """Best-effort alert from an engine-side caller (recorder, broker, runner).
 
     Opens its own session, persists + queues delivery + publishes, and SWALLOWS
-    every error — raising an alert must never break trade recording or the
+    every error: raising an alert must never break trade recording or the
     engine loop.
     """
     from qsdash.bus import PgSyncPublisher

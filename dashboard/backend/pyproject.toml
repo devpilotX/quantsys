@@ -22,7 +22,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-asyncio>=0.24"]
+# httpx2: Starlette's TestClient runs on it; with plain httpx it warns that
+# support is deprecated (starlette[full] requires httpx2>=2.0.0).
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "httpx2>=2.0.0"]
 
 [tool.setuptools.packages.find]
 where = ["."]

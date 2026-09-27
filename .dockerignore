@@ -1,0 +1,26 @@
+# Build context for dashboard/backend/Dockerfile, which copies only
+# pyproject.toml, README.md, constraints/, src/, config/ and dashboard/backend/.
+# Everything else is kept out so it is neither uploaded nor able to leak in.
+.git
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/*.egg-info
+.venv
+venv
+**/.env
+**/.env.*
+!**/.env.example
+dashboard/frontend
+data
+data_cache
+state
+logs
+secrets
+pgdata
+backups
+reports
+docs
+tests

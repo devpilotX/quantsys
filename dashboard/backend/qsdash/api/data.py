@@ -588,7 +588,7 @@ def config_versions(limit: int = 200, db: Session = Depends(get_db)):
 
 @router.get("/downshock")
 def downshock_tracker():
-    """Forward paper-tracker for the Pillar-4 down-shock lead — a READ-ONLY
+    """Forward paper-tracker for the Pillar-4 down-shock lead: a READ-ONLY
     research monitor (trades nothing). Reads the JSON/CSV the VPS daily job
     writes; absent => not available (local/dev), which the UI shows as 'not
     running'. The forward curve is cum-return per run-date (deduped)."""

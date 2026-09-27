@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from scipy.signal import lfilter
 
-if TYPE_CHECKING:  # import for typing only — keeps this module import-cycle free
+if TYPE_CHECKING:  # import for typing only: keeps this module import-cycle free
     from quantsys.data.history import BarHistory
 
 

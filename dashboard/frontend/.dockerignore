@@ -1,0 +1,9 @@
+# The image runs npm ci itself; a host node_modules or .next copied over it by
+# `COPY . .` would replace Linux binaries with whatever the host built.
+node_modules
+.next
+out
+*.tsbuildinfo
+.env
+.env.*
+!.env.example

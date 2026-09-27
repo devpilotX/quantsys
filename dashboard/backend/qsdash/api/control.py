@@ -4,7 +4,7 @@
 2. writes ``config_versions`` (versioned diff) and/or a ``commands`` row,
 3. audit-logs, 4. publishes a ``commands``/``config`` event.
 
-The API NEVER mutates engine behaviour directly — the engine consumes the
+The API NEVER mutates engine behaviour directly: the engine consumes the
 command queue and acks. Switching to LIVE additionally demands the typed
 confirmation phrase and refuses if paper positions are open (unless the
 operator explicitly chose flatten_first).
@@ -39,7 +39,7 @@ router = APIRouter(prefix="/control", tags=["control"])
 _publisher = make_sync_publisher(SessionLocal)
 
 # Operator-tunable risk keys the settings page may write. Anything outside
-# this list is rejected — adding a knob is a deliberate code change.
+# this list is rejected: adding a knob is a deliberate code change.
 ALLOWED_CONFIG_KEYS = {
     "sizing.base_risk_frac",
     "vol_target.annual_vol_target",
@@ -118,7 +118,7 @@ class CapBody(BaseModel):
 
 
 class KillBody(BaseModel):
-    action: Literal["kill", "flatten", "rearm_dd_kill", "clear_halt"]
+    action: Literal["kill", "flatten", "rearm_dd_kill", "clear_halt", "rebaseline_live_book"]
     reason: str = ""
 
 
@@ -189,15 +189,17 @@ def set_mode(body: ModeBody, request: Request, db: Session = Depends(get_db),
         "flatten_first": body.flatten_first,
         "from_mode": current,
     }
+    # The caps travel in the command only. runtime_config's cap keys are
+    # shared with the paper engine: written here, a go-live the engine's gate
+    # refused would still leave the live cap in force at the next restart.
+    # The engine writes them once it has made the switch.
     if body.deployable_cap_frac is not None:
-        _set_rc(db, "deployable_cap_frac", body.deployable_cap_frac, username, body.reason)
         payload["deployable_cap_frac"] = body.deployable_cap_frac
     if body.deployable_cap_abs is not None:
-        _set_rc(db, "deployable_cap_abs", body.deployable_cap_abs, username, body.reason)
         payload["deployable_cap_abs"] = body.deployable_cap_abs
 
     # NOTE: 'mode' RuntimeConfig is flipped by the ENGINE when it completes the
-    # transition (command ack), not here — the badge always shows engine truth.
+    # transition (command ack), not here: the badge always shows engine truth.
     _set_rc(db, "mode_requested", body.target_mode, username, body.reason)
     cmd = _enqueue(db, username, "set_mode", payload)
     audit(db, username, "control.mode.requested", payload, client_ip(request))

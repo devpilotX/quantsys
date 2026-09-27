@@ -1,6 +1,6 @@
 """Typed configuration tree (pydantic v2). YAML files validate against this;
 code defaults here ARE the documented baseline. Every tunable in the system
-lives in this tree — nothing risk-relevant is hard-coded anywhere else.
+lives in this tree: nothing risk-relevant is hard-coded anywhere else.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ class EngineConfig(BaseModel):
     min_order_notional: float = 5_000.0
     # Equity-scaled dust floor: effective min notional = max(min_order_notional,
     # min_order_frac * equity). A flat Rs5k floor is meaningless on a Rs15cr
-    # book — 1-share rebalance dribbles passed it and churned every bar. 0 = off
+    # book: 1-share rebalance dribbles passed it and churned every bar. 0 = off
     # (small accounts keep the flat floor).
     min_order_frac: float = 0.0
     index_symbol: str = "NIFTY"         # regime features source
@@ -56,6 +56,20 @@ class SizingConfig(BaseModel):
     # Off by default: at a small float the honest answer stays "too big to trade".
     min_lot_promotion: bool = False
     promotion_max_risk_frac: float = Field(0.005, gt=0, le=0.02)
+    # A net short in a cash equity cannot be carried overnight in India. The
+    # live runner turns this off; groups that would leave one are then dropped
+    # whole, so no hedge leg goes out alone. Backtest and paper keep the
+    # research construction.
+    allow_equity_shorts: bool = True
+    # Multi-leg groups are sized from the parent notional, so hedge ratios are
+    # exact until finalize() rounds each leg to whole lots on its own. Legs do
+    # not round by the same proportion: a pair intended at 7.0/2.4 lots ships as
+    # 7/2, 17% under-hedged, carrying directional exposure on a book sized to be
+    # market-neutral. A group whose realised ratio drifts more than this
+    # fraction from the intended one is dropped, the same policy as a leg that
+    # rounds to zero. 0.10 tolerates ordinary rounding on liquid multi-lot legs
+    # and refuses the small-lot cases where the error is material.
+    max_hedge_ratio_drift: float = Field(0.10, gt=0.0, le=1.0)
 
 
 class KellyConfig(BaseModel):
@@ -67,12 +81,15 @@ class KellyConfig(BaseModel):
     var_floor: float = 1e-10
     ramp_floor: float = 0.08       # incubation allocation while n_eff < ramp_obs
     ramp_obs: float = 750.0
+    # The incubation floor is withdrawn early only when the shrunk mean edge
+    # is clearly negative: t = mean / sqrt(var / n_eff) <= -ramp_withdraw_t.
+    ramp_withdraw_t: float = Field(2.0, gt=0)
     explore_floor: float = 0.0     # forced min allocation (paper exploration only); 0 = off
     # Regime-conditional Kelly tilt: per-(strategy, regime-label) edge stats
     # (same EWMA estimator, soft-assigned by regime probability) tilt each
     # strategy's f by clip(1 + beta * sum_label p_label * tanh(t_label / 2),
     # min, max) where t is the bucket's shrunk t-stat with n_eff capped. The
-    # allocation ADAPTS to which regimes a sleeve has actually earned in —
+    # allocation ADAPTS to which regimes a sleeve has actually earned in:
     # walk-forward by construction (only past bars enter the buckets).
     # beta = 0 (default) disables the tilt entirely: live/backtest unchanged.
     regime_tilt_beta: float = 0.0
@@ -112,7 +129,9 @@ class ExposureConfig(BaseModel):
 
 
 class RegimeLabelConfig(BaseModel):
-    risk_scaler: float = 1.0
+    # Multiplies total risk. 0 is the floor (flat in this regime): a negative
+    # value would pull the probability-blended scaler below that.
+    risk_scaler: float = Field(1.0, ge=0)
     strategy_weights: dict[str, float] = {}
 
 
@@ -185,10 +204,17 @@ def _DEFAULT_LADDER() -> list[TierConfig]:
 
 
 class CostConfig(BaseModel):
-    # Verified June 2026 (Budget 2026 STT effective 2026-04-01). Re-verify quarterly.
-    brokerage_flat: float = 20.0
-    brokerage_pct: float = 0.0025
-    brokerage_delivery_flat: float = 0.0
+    # STT verified June 2026 (Budget 2026, effective 2026-04-01). Re-verify quarterly.
+    # Angel One brokerage, checked 2026-09-26 against angelone.in "Brokerage
+    # charges": equity delivery and intraday pay min(Rs 20, 0.1% of the order)
+    # with a Rs 5 minimum (delivery has been charged since 2024-11-01; the
+    # model had it free), and F&O pays Rs 20 per executed order.
+    brokerage_flat: float = 20.0      # equity cap per order; the F&O fee per order
+    brokerage_pct: float = 0.001
+    brokerage_min: float = 5.0
+    # A fixed fee per delivery order instead of the schedule above. None uses
+    # the schedule; 0.0 reproduces the old free-delivery assumption.
+    brokerage_delivery_flat: float | None = None
     stt_future_sell: float = 0.0005
     stt_option_sell: float = 0.0015
     stt_delivery: float = 0.001
@@ -260,10 +286,14 @@ class VolOptionsConfig(BaseModel):
 class ExpiryConfig(BaseModel):
     # Research candidate (Phase 4), DISABLED by default and unvalidated. Enabled
     # only inside the OOS test harness until/unless it clears the gate. Single
-    # pre-registered hypothesis (NOT to be tuned): NSE monthly F&O expiry (last
-    # Thursday) concentrates options OI; market-maker hedging + settlement flows
-    # mean-revert short-horizon price deviations into expiry. Rule: during the
-    # expiry-week window, FADE deviations from a rolling mean; flat otherwise.
+    # pre-registered hypothesis (NOT to be tuned): NSE monthly F&O expiry (moved
+    # from the last Thursday to the last Tuesday on 1 Sep 2025) concentrates
+    # options OI; market-maker hedging + settlement flows mean-revert
+    # short-horizon price deviations into expiry. Rule: in the last window_days
+    # calendar days of the month, FADE deviations from a rolling mean; flat
+    # otherwise. The window never looks at the expiry date: under Tuesday expiry
+    # a month ending Friday to Monday has most window sessions after expiry
+    # (see strategies/expiry.py).
     enabled: bool = False
     priority: int = 4
     timeframe_bars: int = 2           # 30-min bars on a 15-min decision clock
@@ -290,7 +320,7 @@ class FactorConfig(BaseModel):
     skip_bars: int = 21               # skip most-recent month (12-1 momentum)
     vol_lookback: int = 252           # low-vol factor window
     rebalance_bars: int = 21          # monthly rebalance cadence (resampled bars)
-    top_k: int = 30                   # longs (and shorts if market_neutral)
+    top_k: int = Field(30, ge=1)      # longs (and shorts if market_neutral)
     min_universe: int = 40            # emit nothing below this breadth (live-narrow safe)
     market_neutral: bool = True       # long top-K / short bottom-K, dollar-neutral
     atr_n: int = 14                   # ATR window for the per-name risk stop
@@ -299,7 +329,7 @@ class FactorConfig(BaseModel):
 
 
 class DownShockConfig(BaseModel):
-    # Pillar 4 event sleeve — the down-shock underreaction drift, promoted from
+    # Pillar 4 event sleeve: the down-shock underreaction drift, promoted from
     # the zero-risk tracker to a PAPER sleeve for the forward study. The rule is
     # the FROZEN research config (docs/PILLAR4_EVENT_DRIVEN.md §8a + gate table:
     # z 3.5 / hold 10, IS-selected, hold-out Sharpe 1.75 but deflated 0.46 →
@@ -329,16 +359,16 @@ class DownShockConfig(BaseModel):
 
 class ReversalConfig(BaseModel):
     # NEW pre-registered hypothesis (Forward Study 2): short-term cross-sectional
-    # reversal — long the past-week losers, short the winners, dollar-neutral,
+    # reversal: long the past-week losers, short the winners, dollar-neutral,
     # weekly cadence on the self-seeded daily panel (same machinery as factor).
     # Classic anomaly (Jegadeesh 1990); NO historical validation was run on our
-    # data (turnover is high and costs likely bite — that is exactly what the
+    # data (turnover is high and costs likely bite: that is exactly what the
     # forward paper record measures). DISABLED by default.
     enabled: bool = False
     priority: int = 7
     lookback_days: int = 5
     rebalance_days: int = 5
-    top_k: int = 8
+    top_k: int = Field(8, ge=1)
     min_universe: int = 34
     market_neutral: bool = True
     atr_n: int = 14
@@ -347,7 +377,7 @@ class ReversalConfig(BaseModel):
 
 
 class TomConfig(BaseModel):
-    # NEW pre-registered hypothesis (Forward Study 2): turn-of-month index tilt —
+    # NEW pre-registered hypothesis (Forward Study 2): turn-of-month index tilt:
     # long index futures from the last `days_before` WEEKDAYS of the month
     # through the first `days_after` weekdays of the next (documented
     # institutional-flow calendar effect; weekday approximation of session days,

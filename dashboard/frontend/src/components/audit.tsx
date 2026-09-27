@@ -1,6 +1,6 @@
 "use client";
 
-/** Renders an engine audit trail (AuditEvent list) — the raw decision story.
+/** Renders an engine audit trail (AuditEvent list): the raw decision story.
  * Shown verbatim: stage/rule/symbol/before->after/detail. */
 
 import { Badge } from "@/components/ui";

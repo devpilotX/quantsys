@@ -4,7 +4,7 @@
 This repository's research is closed with a documented no-edge verdict, the
 live gate is deliberately shut, and arming it requires `QS_LIVE_ARMED=1` in the
 environment. That flag is meant to be set by hand on the box, by a human who
-has just rotated credentials and read GOLIVE.md — never to arrive as part of a
+has just rotated credentials and read GOLIVE.md: never to arrive as part of a
 commit, a template, a compose file, or a systemd unit.
 
 The failure this guards against is mundane and expensive: someone flips the

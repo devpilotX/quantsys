@@ -75,7 +75,7 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
 
-  # paper on LIVE Angel One data — the VPS validation profile (no real orders).
+  # paper on LIVE Angel One data: the VPS validation profile (no real orders).
   engine-paper:
     profiles: ["paper"]
     # Containment (audit 2026-06-26): the engine has a memory-runaway bug that,

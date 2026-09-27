@@ -2,11 +2,11 @@
 # Every value here overrides the typed defaults in quantsys/config/schema.py.
 # Tier ladder, risk limits, costs: see schema.py for the full documented set.
 #
-# 2026-07-02 (evening) FORWARD STUDY 2 (paper only — docs/FORWARD_STUDY_2.md,
+# 2026-07-02 (evening) FORWARD STUDY 2 (paper only: docs/FORWARD_STUDY_2.md,
 # supersedes Study 1 same-day, before any evaluation read existed):
 #   * three NEW pre-registered sleeves: downshock (frozen Pillar-4 research
 #     rule, promoted from the zero-risk tracker), reversal and tom (new
-#     hypotheses, no historical fit) — code defaults stay False, this file is
+#     hypotheses, no historical fit): code defaults stay False, this file is
 #     the single switch;
 #   * tier ladder override: T5 5 / T6 7 strategy slots so the wider ensemble
 #     actually runs (schema default capped at 4);
@@ -14,13 +14,13 @@
 #     (bounded 0.5x..1.5x, walk-forward by construction);
 #   * engine.min_order_frac: equity-scaled dust floor (kills 1-share churn at
 #     Rs15cr; no effect at small floats);
-#   * regime strategy_weights extended to every sleeve (stated priors — the
+#   * regime strategy_weights extended to every sleeve (stated priors: the
 #     learned tilt refines within its bounds).
 #
-# 2026-07-02 FORWARD-STUDY UNLOCK (paper only — see docs/FORWARD_STUDY.md):
+# 2026-07-02 FORWARD-STUDY UNLOCK (paper only: see docs/FORWARD_STUDY.md):
 #   * universe broadened to 48 liquid large-caps + 2 index futures so the
 #     Pillar-2 factor sleeve has real breadth (TATAMOTORS became TMPV/TMCV
-#     after the 2025 demerger — the old symbol is gone from the master);
+#     after the 2025 demerger: the old symbol is gone from the master);
 #   * factor + expiry sleeves enabled for the pre-registered forward paper
 #     study (code defaults stay False; live arming stays gated by
 #     QS_LIVE_ARMED + rotated credentials, unchanged);
@@ -28,7 +28,7 @@
 #     minimum inside an explicit risk ceiling;
 #   * the paper float itself is operational state (durable runtime_config key
 #     `paper_capital`; ₹15cr for the study so tier T6 unlocks 40 instruments
-#     and all 4 strategy slots) — deliberately NOT a value in this file.
+#     and all 4 strategy slots): deliberately NOT a value in this file.
 #
 # NOTE ON MARKET DATA CONSTANTS (lot sizes, ADV, margins): sample values
 # verified June 2026 (NIFTY lot 65, BANKNIFTY lot 30 per NSE Jan-2026
@@ -78,7 +78,7 @@ tiers:
     - {name: T6, min_equity: 1.5e8, max_instruments: 40, max_strategies: 7, execution_style: ALMGREN_CHRISS, adv_cap_pct: 0.05, min_cost_multiple: 1.25, rebalance_band: 0.10, gross_leverage_cap: 2.5}
 
 # Regime priors for the wider ensemble (labels replace the schema default
-# wholesale — all three restated). The learned kelly tilt refines these within
+# wholesale: all three restated). The learned kelly tilt refines these within
 # [regime_tilt_min, regime_tilt_max] as forward evidence accumulates.
 regime:
   labels:
@@ -95,8 +95,10 @@ regime:
       strategy_weights: {trend: 0.6, meanrev: 0.4, factor: 0.8, expiry: 0.7,
                          downshock: 1.2, reversal: 0.6, tom: 0.7}
 
-# Costs: verified June 2026 — Budget 2026 STT (futures 0.05%, options 0.15%)
-# effective 2026-04-01; Angel One Rs 20/0.25% per order; re-verify quarterly.
+# Costs: STT verified June 2026 (Budget 2026: futures 0.05%, options 0.15%,
+# effective 2026-04-01). Angel One brokerage checked 2026-09-26: equity
+# min(Rs 20, 0.1%) with a Rs 5 minimum, delivery included; F&O Rs 20 per
+# order. The full schedule is CostConfig in schema.py. Re-verify quarterly.
 costs:
   brokerage_flat: 20.0
 
@@ -113,7 +115,7 @@ downshock:
 # reversal stays OFF: the pre-deployment sanity check (scripts/
 # _study2_sanity_checks.py, 2026-07-02) showed the WHOLE parameter
 # neighborhood net-negative on 2017-26 daily data (Sharpe -0.58..-0.94,
-# PBO 0.84) — deploying it would knowingly burn study risk budget. The code
+# PBO 0.84): deploying it would knowingly burn study risk budget. The code
 # ships tested for a future cost-structure change; documented as a REJECTED
 # arm in docs/FORWARD_STUDY_2.md (n_trials accounting included).
 reversal:

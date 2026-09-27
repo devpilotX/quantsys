@@ -3,11 +3,18 @@ clock -> HMM filtered state probabilities -> blended RegimeState.
 
 Fail-safe ladder (capital preservation first):
 1. healthy fitted HMM      -> probabilistic regime (smooth, no cliff-edges)
-2. fit degenerate/missing  -> deterministic vol-percentile fallback
+2. fit degenerate/missing,
+   or a non-finite filter  -> deterministic vol-percentile fallback
 3. not enough history yet  -> conservative warmup state (reduced risk)
+
+Labels are tied across refits: each refit's calm states inherit the labels of
+the previous model's nearest calm states (see _map_labels), so a refit does
+not relabel an unchanged market.
 """
 
 from __future__ import annotations
+
+import logging
 
 import numpy as np
 
@@ -17,7 +24,16 @@ from quantsys.core.types import RegimeState
 from quantsys.data.features import ema, ewma_vol_series, log_returns
 from quantsys.regime.hmm import HMMParams, filtered_probs, fit_hmm
 
+log = logging.getLogger("quantsys.regime.detector")
+
 LABELS = ("calm_trend", "calm_range", "turbulent")
+
+
+def _raw_moments(params: HMMParams, mu: np.ndarray, sd: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Per-state means and log-variances in raw feature units. Each fit
+    standardises its own window, so states of two fits are comparable only
+    after that scaling is undone."""
+    return mu + sd * params.means, np.log(params.variances) + 2.0 * np.log(sd)
 
 
 class RegimeDetector:
@@ -43,10 +59,14 @@ class RegimeDetector:
         if self._params is not None and not self._params.degenerate:
             Z = self._standardize(X[-self.cfg.train_window :])
             p_states = filtered_probs(self._params, Z)
-            probs = dict.fromkeys(LABELS, 0.0)
-            for k, p in enumerate(p_states):
-                probs[self._label_map[k]] += float(p)
-            return self._compose(probs, "hmm")
+            if np.all(np.isfinite(p_states)):
+                probs = dict.fromkeys(LABELS, 0.0)
+                for k, p in enumerate(p_states):
+                    probs[self._label_map[k]] += float(p)
+                return self._compose(probs, "hmm")
+            # NaN here would become the risk_scaler and every strategy weight
+            log.warning("regime filter gave non-finite state probabilities %s; "
+                        "using the fallback for this bar", p_states)
         return self._fallback(X)
 
     # ------------------------------------------------------------- internals
@@ -59,7 +79,16 @@ class RegimeDetector:
             return None
         r = log_returns(rs["close"])
         vol = ewma_vol_series(r, self.cfg.vol_halflife)
-        return np.column_stack([r, np.log(np.clip(vol, 1e-8, None))])
+        X = np.column_stack([r, np.log(np.clip(vol, 1e-8, None))])
+        # A NaN or non-positive close makes the return on each side of it
+        # non-finite, and one such row turns the standardisation, every EM
+        # estimate and every filtered probability into NaN. Drop it here, so
+        # neither the fit nor the filter nor the fallback ever sees it.
+        finite = np.isfinite(X).all(axis=1)
+        if not finite[-1]:
+            log.warning("%s: latest regime feature row is non-finite (bad close?); dropped",
+                        self.index_symbol)
+        return X[finite]
 
     def _standardize(self, X: np.ndarray) -> np.ndarray:
         assert self._scaler_mu is not None and self._scaler_sd is not None
@@ -80,24 +109,65 @@ class RegimeDetector:
         )
         if params.degenerate:
             return  # refuse a bad fit; keep previous model or fall back
+        label_map = self._map_labels(params, mu, sd)  # reads the model being replaced
         self._params = params
         self._scaler_mu, self._scaler_sd = mu, sd
-        self._label_map = self._map_labels(params)
+        self._label_map = label_map
 
-    @staticmethod
-    def _map_labels(params: HMMParams) -> dict[int, str]:
-        """vol-dim mean ranks states; the calmer two split by trendiness."""
+    def _map_labels(self, params: HMMParams, mu: np.ndarray, sd: np.ndarray) -> dict[int, str]:
+        """The highest vol-dim mean is turbulent. The calmer states split by
+        trendiness on the first fit only: for two near-zero-drift calm states
+        that split is noise, so a refit would swap the labels (and with them
+        the regime weights and the per-label Kelly buckets) with no change in
+        the market. Later fits give calm_trend to the calm state that, with
+        the others as calm_range, best matches the calm_trend and calm_range
+        states of the model being replaced, on the means and log-variances of
+        the feature vector."""
         vol_means = params.means[:, 1]
         turbulent = int(np.argmax(vol_means))
         rest = [k for k in range(len(vol_means)) if k != turbulent]
-        trendiness = {
-            k: abs(params.means[k, 0]) / np.sqrt(params.variances[k, 0] + 1e-12) for k in rest
-        }
-        trend = max(rest, key=lambda k: trendiness[k])
+        prev = self._calm_states()
+        if prev is None:
+            trendiness = {
+                k: abs(params.means[k, 0]) / np.sqrt(params.variances[k, 0] + 1e-12) for k in rest
+            }
+            trend = max(rest, key=lambda k: trendiness[k])
+        else:
+            prev_means, prev_logvars, prev_trend, prev_ranges = prev
+            means, logvars = _raw_moments(params, mu, sd)
+
+            def dist(k: int, j: int) -> float:
+                # squared distance in this fit's standardised units
+                return float(np.sum(((means[k] - prev_means[j]) / sd) ** 2)
+                             + np.sum((logvars[k] - prev_logvars[j]) ** 2))
+
+            def cost(t: int) -> float:
+                return dist(t, prev_trend) + sum(
+                    min(dist(k, j) for j in prev_ranges) for k in rest if k != t)
+
+            trend = min(rest, key=cost)
         mapping = {turbulent: "turbulent", trend: "calm_trend"}
         for k in rest:
             mapping.setdefault(k, "calm_range")
         return mapping
+
+    def _calm_states(self) -> tuple[np.ndarray, np.ndarray, int, list[int]] | None:
+        """Raw-unit moments of the current model with its calm_trend state
+        and calm_range states, or None when there is nothing usable to match
+        a new fit against (first fit, or a restored model that is degenerate
+        or lacks a calm pair). Built from the persisted params, scaler and
+        label map, so a restored detector matches exactly as the live one."""
+        p, mu, sd = self._params, self._scaler_mu, self._scaler_sd
+        if p is None or p.degenerate or mu is None or sd is None:
+            return None
+        trend = [k for k, lab in self._label_map.items() if lab == "calm_trend"]
+        ranges = [k for k, lab in self._label_map.items() if lab == "calm_range"]
+        if len(trend) != 1 or not ranges:
+            return None
+        means, logvars = _raw_moments(p, mu, sd)
+        if not (np.all(np.isfinite(means)) and np.all(np.isfinite(logvars))):
+            return None
+        return means, logvars, trend[0], ranges
 
     def _fallback(self, X: np.ndarray) -> RegimeState:
         vol = np.exp(X[:, 1])

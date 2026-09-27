@@ -12,7 +12,7 @@ Report privately. Do not open a public issue for anything exploitable.
 - Email: devpilotx@gmail.com
 
 Please include what an attacker reaches, not only what is theoretically
-wrong — a reproduction or a specific file and line is worth more than a scanner
+wrong. A reproduction or a specific file and line is worth more than a scanner
 export. Expect an acknowledgement within 7 days.
 
 There is no bug bounty. This is a single-maintainer project.
@@ -31,7 +31,7 @@ several rules that would otherwise look paranoid:
 - **Rotation is a hard precondition for ever arming live trading.** See
   `docs/GOLIVE.md` §0. The engine runs with `QS_LIVE_ARMED=0` and the research
   verdict is closed, so nothing is at risk today, but the leaked credentials
-  must be rotated before that changes — not as a task, as a gate.
+  must be rotated before that changes: not as a task, as a gate.
 - `.gitignore` carries explicit rules for `VPS_DEPLOYMENT_REPORT.*`, `*.pdf`,
   `*.docx`, `secrets/`, `deploy/backups/` and every `.env` variant. Rendered
   exports (PDF/DOCX) are ignored because they can carry the same secrets as
@@ -57,29 +57,62 @@ several rules that would otherwise look paranoid:
 
 ## Known security-relevant limitations
 
-Stated plainly rather than left for a reader to discover. These are tracked and
-are preconditions for live arming, not accepted risks:
+Stated plainly rather than left for a reader to discover. These are
+preconditions for live arming, not accepted risks.
 
-1. **Reconciliation is not yet a real check in the live path.** The live runner
-   builds its "internal" position book by reading the broker, then diffs it
-   against the broker, so the documented freeze-on-mismatch can never fire. The
-   engine must maintain its own intended book from recorded fills. Until that
-   lands, treat the live reconciliation guarantee as absent. Paper mode is
-   unaffected (PaperBroker keeps its own book).
-2. **Order idempotency is in-memory only.** The OMS and the Angel adapter hold
-   their submitted-order maps in RAM and persist neither, and the adapter
-   records the client-order-to-broker-order mapping only *after* a successful
-   response. A process restart, or a send that succeeds while its response is
-   lost, can therefore admit a duplicate order on retry.
-3. **The Angel postback webhook fails open when its secret is unset**, and the
-   secret defaults to empty. An unauthenticated POST can mutate order, fill and
-   position rows. Set `angel_webhook_secret` before any live use.
-4. **No explicit timeouts on broker HTTP calls.** A hung endpoint blocks the
-   decision loop.
-5. **The dashboard SQL console relies on a keyword blocklist** plus a read-only
-   transaction rather than a dedicated read-only database role. It is
-   authenticated and CSRF-protected, so this is defence-in-depth rather than an
-   open door, but a read-only role is the correct fix.
+The five listed here until 2026-09 are fixed:
+
+- Reconciliation compares the engine's own book (a baseline snapshot taken
+  when live trading first starts, plus every live fill recorded after it)
+  with one broker read per bar. An unreadable broker halts the bar. After a
+  mismatch has been explained, the `rebaseline_live_book` operator command
+  takes the broker's book as the new baseline.
+- Every order row is committed as `PENDING_SUBMIT` before the broker call. A
+  send whose response is lost is looked up in the order book by ordertag
+  before anything may send it again, and a restart reloads open orders.
+  Client ids carry the year and a decision/flatten tag.
+- The postback webhook refuses every request (503) when no secret is set.
+  Unsigned postbacks need an explicit flag, honoured only with `ENV=dev`.
+  `livegate` and `preflight.py` refuse to arm with a secret that is empty,
+  shorter than 32 characters or the example placeholder.
+- Every SmartAPI call carries a (3.05 s, 10 s) timeout. The SDK's own logger,
+  which wrote request headers (the session JWT) and login parameters (client
+  code, MPIN, TOTP) to `./logs/<date>/app.log` on every failed call, is muted,
+  and our error messages mask every credential we hold.
+- The SQL console runs each statement read-only (on SQLite as well), with a
+  5 s timeout on Postgres, refuses the `users` and `sessions` tables and the
+  functions that run SQL built at run time, and can run on a dedicated
+  read-only role (`CONSOLE_DATABASE_URL`; the role SQL is in
+  `qsdash/api/dbadmin.py`).
+
+What is still open:
+
+1. **Delivery holdings are not read.** `positions()` reads Angel's position
+   book only. If settled delivery equity moves to the holdings book, the next
+   day's reconciliation halts, sells of those shares are refused as shorts,
+   and a flatten misses them. Check against the live API before arming.
+2. **Broker behaviour the duplicate-order guard relies on is unverified.**
+   That the order book carries `ordertag` and shows a just-accepted order
+   within about a second, that a hyphen in the ordertag is accepted, that a
+   cancelled order stays in the day's book, and the full set of order status
+   strings (an unknown one blocks its symbol, which is safe but stops
+   trading it). Also unverified: `CARRYFORWARD` as the product type for
+   carried NFO positions, and the 120 s postback grace.
+3. **The console's read-only role is not created by default.** Without
+   `CONSOLE_DATABASE_URL` the console runs on the application role, which in
+   `deploy/docker-compose.yml` is the Postgres bootstrap superuser, and only
+   text checks stand between a query and the credential tables. In prod every
+   console response then carries a warning saying so.
+4. **Live does not short cash equities.** A cash-segment short cannot be
+   carried overnight, so the live sizer drops any group that would net short
+   an equity, whole. The factor sleeve's short side and equity pairs
+   therefore do not trade live; routing shorts through stock futures is not
+   implemented.
+5. **Two restart corners.** The flatten attempt counter is in memory, so a
+   flatten repeated in the same minute right after a restart reuses its id;
+   the journal refuses to send it again and reports the symbol as blocked.
+   Re-baselining while a postback is in flight counts that fill twice; the
+   command's result warns when orders are still working.
 
 ## Reporting a research-integrity problem
 

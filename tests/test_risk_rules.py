@@ -123,3 +123,53 @@ def test_net_cap():
                          corr_cluster_frac=99.0, net_frac=1.5, margin_util_cap=99.0)
     apply_exposure_rules(book, _ctx(insts, prices, cfg=cfg, tier=_tier(lev=99.0)), [])
     assert abs(book.net(prices, insts)) <= 1.5 * E + 1e-6
+
+
+
+def test_sector_cap_scales_an_intra_sector_pair_once():
+    """A pair with both legs in one sector used to be scaled once per member
+    symbol, ending at factor squared."""
+    book = TargetBook()
+    book.add_group([Component("A", 2000.0, "mr", "mr:A|B", 1.0, 100.0),
+                    Component("B", -2000.0, "mr", "mr:A|B", 1.0, 100.0, False)],
+                   Signal("mr", "A", 1.0, 1.0, legs=(LegSpec("A", 1.0), LegSpec("B", -1.0)),
+                          tag="A|B"))
+    book.add_group(_single("C", 2000.0, 100.0, "trend", "trend:C"), Signal("trend", "C", 1.0, 1.0))
+    insts = {s: make_inst(s, sector="banks") for s in "ABC"}
+    prices = dict.fromkeys(insts, 100.0)
+    audits = []
+    apply_exposure_rules(book, _ctx(insts, prices, cfg=ExposureConfig(sector_frac=0.30)), audits)
+    nn = book.net_notional(prices, insts)
+    assert sum(abs(v) for v in nn.values()) == pytest.approx(0.30 * E, rel=1e-9)
+    assert nn == pytest.approx({"A": 100_000.0, "B": -100_000.0, "C": 100_000.0}, rel=1e-9)
+    assert [a.rule for a in audits] == ["sector_cap"]
+
+
+def test_corr_cluster_cap_scales_a_multi_member_group_once():
+    book = TargetBook()
+    book.add_group([Component("X", 2000.0, "mr", "mr:X|Y", 1.0, 100.0),
+                    Component("Y", -2000.0, "mr", "mr:X|Y", 1.0, 100.0, False)],
+                   Signal("mr", "X", 1.0, 1.0, legs=(LegSpec("X", 1.0), LegSpec("Y", -1.0)),
+                          tag="X|Y"))
+    book.add_group(_single("Z", 2000.0, 100.0, "trend", "trend:Z"), Signal("trend", "Z", 1.0, 1.0))
+    insts = {s: make_inst(s, sector=s) for s in "XYZ"}
+    prices = dict.fromkeys(insts, 100.0)
+    corr = np.array([[1.0, -0.9, 0.9], [-0.9, 1.0, -0.9], [0.9, -0.9, 1.0]])
+    cfg = ExposureConfig(per_instrument_frac=0.5, sector_frac=1.0, corr_threshold=0.7,
+                         corr_cluster_frac=0.40)
+    apply_exposure_rules(book, _ctx(insts, prices, cfg=cfg, corr_syms=["X", "Y", "Z"], corr=corr), [])
+    nn = book.net_notional(prices, insts)
+    assert sum(abs(v) for v in nn.values()) == pytest.approx(0.40 * E, rel=1e-9)
+    assert nn["X"] == pytest.approx(-nn["Y"], rel=1e-12)
+
+
+def test_apply_exposure_rules_reports_the_symbols_it_cut():
+    book = TargetBook()
+    book.add_group([Component("A", 4000.0, "mr", "mr:A|B", 1.0, 100.0),
+                    Component("B", -1000.0, "mr", "mr:A|B", 1.0, 100.0, False)],
+                   Signal("mr", "A", 1.0, 1.0, legs=(LegSpec("A", 1.0), LegSpec("B", -0.25)),
+                          tag="A|B"))
+    book.add_group(_single("C", 1000.0, 100.0, "trend", "trend:C"), Signal("trend", "C", 1.0, 1.0))
+    insts = {s: make_inst(s, sector=s) for s in "ABC"}
+    cut = apply_exposure_rules(book, _ctx(insts, dict.fromkeys(insts, 100.0)), [])
+    assert cut == {"A", "B"}  # A breached the instrument cap, B is its hedge leg

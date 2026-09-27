@@ -14,10 +14,11 @@ logs/
 !/dashboard/frontend/src/app/(dash)/logs/**
 *.parquet
 *.duckdb
+*.png
+# local tool and editor state: may hold tokens, never commit
 .mcp.json.txt
 .mcp.json
 settings.json.txt
-*.png
 settings.local.json
 
 # dashboard
@@ -33,11 +34,11 @@ secrets/
 pgdata/
 backups/*.dump
 
-# deployment report contains live credentials — NEVER commit
+# deployment report contains live credentials: NEVER commit
 VPS_DEPLOYMENT_REPORT.md
 VPS_DEPLOYMENT_REPORT.*
 
-# Rendered exports (PDF/DOCX) can carry the same secrets as their source doc —
+# Rendered exports (PDF/DOCX) can carry the same secrets as their source doc:
 # never track them. Force a specific safe file with `git add -f <file>`.
 *.pdf
 *.docx
@@ -48,5 +49,3 @@ deploy/docker-compose.override.yml
 
 # backend test SQLite DB (generated per session by conftest)
 dashboard/backend/tests/_tmp/
-
-# IDE artifacts

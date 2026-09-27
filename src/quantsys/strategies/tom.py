@@ -4,9 +4,10 @@ NEW pre-registered hypothesis for Forward Study 2: institutional month-end
 flows tilt index returns positive around the month boundary. Rule: LONG the
 configured index futures from the last `days_before` weekdays of a month
 through the first `days_after` weekdays of the next; flat otherwise. The
-window is a pure deterministic function of the bar timestamp (weekday
-approximation of session days — holidays shift the true boundary by at most a
-day, accepted and disclosed). Stops are ATR on ~daily resampled decision bars.
+window is a pure deterministic function of the bar timestamp and counts
+weekdays, not NSE trading sessions (see tom_window_active for what holidays
+and weekend sessions do to it). Stops are ATR on ~daily resampled decision
+bars.
 
 Unlike the panel sleeves this one needs no seeding, so it also trades in the
 intraday backtest.
@@ -41,7 +42,16 @@ def _weekday_index(d: date) -> int:
 
 def tom_window_active(d: date, days_before: int, days_after: int) -> bool:
     """True inside the (-days_before, +days_after) weekday window around the
-    month turn."""
+    month turn.
+
+    Counts calendar weekdays (Mon to Fri), as registered ("last 2 -> first 3
+    weekdays of month", docs/FORWARD_STUDY_2.md), not NSE trading sessions;
+    the exchange holiday calendar is never read. A holiday on a counted
+    weekday still uses up its slot, so the window then holds fewer sessions:
+    it does not reach back or forward to replace the lost one. A weekend
+    special session is always outside the window and never counted, even when
+    it is the last or the first session of the month.
+    """
     if d.weekday() >= 5:
         return False
     return (_weekdays_left(d) <= days_before

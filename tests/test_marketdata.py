@@ -4,7 +4,7 @@ self-healing Angel One websocket feed.
 Regression cover for the 2026-06-15 blank-dashboard incident:
 - ticks must be stamped in IST, not the container's UTC, or no bar ever emits
   during the real NSE session (floor_to_bucket anchors at 09:15 IST);
-- a dead/silent feed must reconnect (with re-auth) on its own — the SDK gave up
+- a dead/silent feed must reconnect (with re-auth) on its own: the SDK gave up
   at 'max retry attempts reached' over a weekend and nothing restarted it.
 
 The socket constructor and re-auth are injected, so the feed's control flow is
@@ -130,7 +130,7 @@ def test_feed_on_data_ignores_unknown_token_and_missing_price():
 
 
 def test_feed_close_callback_tolerates_sdk_arity():
-    # the SDK calls on_close with (ws), (ws, code, msg), etc. — must not raise.
+    # the SDK calls on_close with (ws), (ws, code, msg), etc.: must not raise.
     feed = _make_feed()
     fake = _FakeSws()
     feed._bind_callbacks(fake)
@@ -143,7 +143,7 @@ def test_feed_close_callback_tolerates_sdk_arity():
 # --------------------------------------------------- reconnect / re-auth
 def test_feed_supervisor_reconnects_and_reauth_is_rate_limited():
     """The supervisor rebuilds the socket every time it dies, but re-auth is
-    RATE-LIMITED — it refreshes the token on the first reconnect and then REUSES
+    RATE-LIMITED: it refreshes the token on the first reconnect and then REUSES
     it. (Re-logging in / generateSession on every reconnect hammered the broker
     and fed the 2026-06-26 SSL-race memory runaway.) Many reconnects, one re-auth.
     """
@@ -176,7 +176,7 @@ def test_feed_supervisor_reconnects_and_reauth_is_rate_limited():
 
 def test_feed_reauth_recurs_after_interval():
     """Re-auth still RECURS after reauth_min_interval (a stale Monday token must
-    refresh) — just far less often than reconnects, so it never storms."""
+    refresh): just far less often than reconnects, so it never storms."""
     built: list[_FakeSws] = []
     reauth_calls: list[float] = []
 

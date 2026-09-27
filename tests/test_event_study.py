@@ -1,4 +1,4 @@
-"""Event-study core (Pillar 4 foundation) — unit tests on synthetic data.
+"""Event-study core (Pillar 4 foundation): unit tests on synthetic data.
 
 No market data, no network: we generate returns with a KNOWN market model and,
 in the signal case, a KNOWN injected abnormal return, then check the engine

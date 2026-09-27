@@ -1,4 +1,4 @@
-"""Pillar 4 / sec.8a — PRICE-SHOCK proxy event study (data-available, pre-registered).
+"""Pillar 4 / sec.8a: PRICE-SHOCK proxy event study (data-available, pre-registered).
 
 Large abnormal-return + volume days proxy for unobserved news/earnings events
 (announcement feeds are absent; brief sec.3 permits a disclosed proxy). Screens

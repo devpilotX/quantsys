@@ -1,28 +1,28 @@
 #!/usr/bin/env bash
-# quantsys daily ops self-check — one GREEN/RED line per run appended to
+# quantsys daily ops self-check: one GREEN/RED line per run appended to
 # deploy/_audit/selfcheck.log. A RED run exits non-zero so the systemd unit
-# shows as failed (`systemctl list-units --failed`) — no silent decay.
+# shows as failed (`systemctl list-units --failed`): no silent decay.
 # RED (and WARN) results are also pushed to the operator Telegram chat.
 #
 # Checks: public-plane health endpoint, engine container state, engine
 # heartbeat freshness (engine_status), container restart count (context, not
-# a gate), root-disk headroom — plus the Forward Study 2 integrity guards:
+# a gate), root-disk headroom: plus the Forward Study 2 integrity guards:
 #   * yesterday's decision cadence (trading weekdays from 2026-07-03): exactly
 #     25 decisions, one per 15-min bar, close bar 15:15 decided. A weekday with
 #     ZERO decisions is a WARN, not RED (an NSE holiday is indistinguishable
 #     from an outage here; the operator disambiguates).
 #   * today's post-recycle "paper broker cash restored" engine log line
-#     (weekdays after ~09:05 IST) — guards the durable-cash fix.
+#     (weekdays after ~09:05 IST); guards the durable-cash fix.
 #   * off-box backup freshness: an OK in _audit/offbox.log within 26 h
 #     (see scripts/offbox_backup.sh).
 set -u
-cd "$(dirname "$0")/.."          # -> deploy/
+cd "$(dirname "$0")/.." || exit 1   # -> deploy/
 LOG=_audit/selfcheck.log
 mkdir -p _audit
 fail=""
 warn=""
 
-# Forward Study 2 first live session — the cadence contract applies from here.
+# Forward Study 2 first live session: the cadence contract applies from here.
 STUDY2_START=2026-07-03
 
 tg_notify() {  # $1 = text; best-effort, must never fail the check itself

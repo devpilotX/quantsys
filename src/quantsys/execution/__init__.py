@@ -3,7 +3,7 @@
 `Broker` is the single seam between the deterministic engine and the outside
 world. The backtester's SimBroker and the live AngelOneBroker implement the
 same contract, so the engine's decisions traverse identical code in sim and
-live — only the venue differs.
+live: only the venue differs.
 
 Nothing here is imported by the core engine; the engine stays I/O-free.
 """

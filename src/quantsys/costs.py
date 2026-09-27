@@ -7,13 +7,17 @@ June 2026 (Budget 2026 STT hike effective 2026-04-01):
   equity delivery 0.1% (both sides), equity intraday 0.025% (sell).
 - NSE transaction charges: equity ~0.0030699%, futures ~0.0018299%,
   options ~0.03552% (on premium).
-- Angel One brokerage: equity delivery 0, otherwise min(Rs 20, 0.25%) per order.
+- Angel One brokerage (checked 2026-09-26): equity delivery and intraday
+  min(Rs 20, 0.1%) per order with a Rs 5 minimum; F&O Rs 20 per order.
+  Delivery was modelled as free, which it has not been since 2024-11-01.
+- Not modelled: depository (DP) charges on delivery sells, levied per scrip
+  per day by the depository participant.
 - GST 18% on (brokerage + exchange txn + SEBI fees); SEBI Rs 10/crore.
 - Stamp duty (buy side only): delivery 0.015%, intraday 0.003%,
   futures 0.002%, options 0.003%.
 
 Slippage is a per-kind spread-cost estimate; market impact uses a square-root
-model  impact = coeff * sigma_daily * sqrt(qty / ADV)  charged on notional —
+model  impact = coeff * sigma_daily * sqrt(qty / ADV)  charged on notional:
 this is what makes the ADV constraint bind economically at T5/T6, not just as
 a hard cap.
 """
@@ -65,18 +69,20 @@ class CostModel:
 
         `sigma_daily` is REQUIRED for the square-root impact term to be charged
         at all: passing None (or an instrument with no ADV) yields impact=0.
-        Callers on a fill path must pass the engine's estimate — see
-        Decision.sigma_daily — otherwise reported P&L silently excludes impact
+        Callers on a fill path must pass the engine's estimate: see
+        Decision.sigma_daily: otherwise reported P&L silently excludes impact
         while the cost gate includes it.
         """
         cfg = self.cfg
         notional = abs(qty) * price * inst.point_value
         kind = inst.kind
 
-        if kind == InstrumentKind.EQUITY and delivery:
+        if kind in (InstrumentKind.FUTURE, InstrumentKind.OPTION):
+            brokerage = cfg.brokerage_flat
+        elif kind == InstrumentKind.EQUITY and delivery and cfg.brokerage_delivery_flat is not None:
             brokerage = cfg.brokerage_delivery_flat
         else:
-            brokerage = min(cfg.brokerage_flat, cfg.brokerage_pct * notional)
+            brokerage = min(cfg.brokerage_flat, max(cfg.brokerage_min, cfg.brokerage_pct * notional))
 
         if kind == InstrumentKind.FUTURE:
             stt = cfg.stt_future_sell * notional if not is_buy else 0.0

@@ -37,7 +37,7 @@ from quantsys.core.types import (
 from quantsys.costs import CostModel
 
 # runtime_config key holding the broker's durable cash ledger. Positions were
-# always persisted (PositionRow) but cash/realized were NOT — every restart
+# always persisted (PositionRow) but cash/realized were NOT: every restart
 # rebuilt cash from the bootstrap capital, so a carried book re-added its own
 # cost basis to equity (phantom P&L at each daily recycle).
 _CASH_STATE_KEY = "paper_broker_state"
@@ -152,8 +152,14 @@ class PaperBroker:
 
     # ------------------------------------------------------------ execution
     def execute(self, decision: Decision, decision_id: int,
-                prices: dict[str, float], ts: datetime) -> None:
-        """Fill every order intent immediately at the bar close."""
+                prices: dict[str, float], ts: datetime,
+                printed: set[str] | None = None) -> None:
+        """Fill every order intent immediately at the bar close.
+
+        ``printed`` is the set of symbols with a bar in the decided bucket.
+        An order for any other symbol is not filled this bar: its price is a
+        close from before the decision, and the backtest (SimBroker) refuses
+        the same fill. The engine re-issues it on the next bar."""
         if not decision.orders:
             return
         sess = SessionLocal()
@@ -161,6 +167,10 @@ class PaperBroker:
             self.publisher.bind(sess)
         try:
             for intent in decision.orders:
+                if printed is not None and intent.symbol not in printed:
+                    log.info("paper: %s %+d not filled at %s: no bar in this bucket",
+                             intent.symbol, intent.qty_delta, ts)
+                    continue
                 self._fill_one(sess, intent, decision, decision_id, prices, ts)
             self._persist_cash(sess)
             sess.commit()
@@ -307,7 +317,7 @@ class PaperBroker:
                                     qty, px)
             return 0.0, intent.strategy, False
 
-        # exits often carry no strategy tag — attribute to the position's
+        # exits often carry no strategy tag: attribute to the position's
         strat = (row.strategy if row is not None and row.strategy
                  else intent.strategy)
 
@@ -466,7 +476,7 @@ class PaperBroker:
 
 class _FlattenDecision:
     """Minimal Decision stand-in for operator-initiated flattens (no engine
-    pass involved — rationale says exactly that)."""
+    pass involved: rationale says exactly that)."""
 
     def __init__(self, ts):
         from quantsys.core.types import RegimeState

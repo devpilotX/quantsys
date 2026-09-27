@@ -1,5 +1,5 @@
 """The go-live gate: real money stays impossible until every lock opens.
-These encode the project's hardest safety rule — do not weaken them."""
+These encode the project's hardest safety rule: do not weaken them."""
 
 from __future__ import annotations
 
@@ -53,6 +53,14 @@ def test_backtest_gate_allows_robust_real_run(db):
     _add_run(db, synthetic=False, sharpe=1.4, deflated=0.98, p_neg=0.03)
     g = backtest_gate(db)
     assert g.allowed and g.passing_run_id is not None
+
+
+def test_backtest_gate_refuses_a_run_without_its_monte_carlo_result(db):
+    # strong Sharpe and deflated Sharpe, but P(SR<0) was never computed
+    db.add(BacktestRun(label="t", git_rev="x", metrics={
+        "is_synthetic": False, "sharpe_oos": 1.4, "sharpe_deflated": 0.98}))
+    db.commit()
+    assert not backtest_gate(db).allowed
 
 
 def test_live_gate_refuses_without_adapter_even_with_good_backtest(db):

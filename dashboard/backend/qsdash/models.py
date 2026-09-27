@@ -1,4 +1,4 @@
-"""Database schema — every number the dashboard shows lives in one of these
+"""Database schema: every number the dashboard shows lives in one of these
 tables, written by the engine (trading truth) or the API (auth/control).
 
 Conventions
@@ -6,7 +6,7 @@ Conventions
 - ``mode`` columns separate PAPER and LIVE universes everywhere; they are
   never aggregated together.
 - JSON columns are JSONB on Postgres, plain JSON elsewhere (tests on SQLite).
-- ``decisions.audit`` holds the engine's full AuditEvent trail verbatim —
+- ``decisions.audit`` holds the engine's full AuditEvent trail verbatim:
   the explainability views render it, they never re-derive it.
 """
 
@@ -340,7 +340,7 @@ class Alert(Base):
 
 
 class WebhookEvent(Base):
-    """Inbound webhook ledger — the idempotency guard."""
+    """Inbound webhook ledger: the idempotency guard."""
 
     __tablename__ = "webhook_events"
 
@@ -373,6 +373,27 @@ class EngineStatus(Base):
     status: Mapped[str] = mapped_column(String(24), default="stopped")
     # running | idle (market closed) | halted | killed | stopped
     detail: Mapped[dict] = mapped_column(JSONVariant, default=dict)
+
+
+class EngineState(Base):
+    """The decision engine's own state (DecisionEngine.state_dict), one row
+    per mode, rewritten after every decision. A restart restores it so the
+    kill latches, the drawdown reference, stops, the regime model, the edge
+    statistics and each sleeve's episode (hold counters, rebalance clock)
+    survive the daily recycle."""
+
+    __tablename__ = "engine_state"
+
+    mode: Mapped[str] = mapped_column(String(8), primary_key=True)
+    saved_at: Mapped[datetime] = mapped_column(DateTime, default=now_ist)
+    bar_ts: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    config_hash: Mapped[str] = mapped_column(String(64), default="")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    state: Mapped[dict] = mapped_column(JSONVariant, default=dict)
+    # The capital settings the drawdown references were measured under
+    # (deployable caps), so a change made while the engine was down is
+    # re-based on restore instead of read as a gain or a loss.
+    basis: Mapped[dict] = mapped_column(JSONVariant, default=dict)
 
 
 class BacktestRun(Base):

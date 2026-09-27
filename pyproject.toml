@@ -49,7 +49,7 @@ dev = [
     "pre-commit>=3.7",
     "types-PyYAML>=6.0",
 ]
-# Execution layer (next phase) — kept out of core so the brain has zero broker deps.
+# Execution layer (next phase): kept out of core so the brain has zero broker deps.
 # PINNED 2026-06-26: smartapi-python 1.5.5's SmartWebSocketV2 binds ws-first socket
 # callbacks: _on_open(self, wsapp), _on_close(self, wsapp), _on_pong(self, wsapp,
 # data), _on_data(self, wsapp, ...). It needs a websocket-client that BOTH (a) passes
@@ -67,6 +67,12 @@ broker = [
     "websocket-client==0.59.0",
     "pyotp==2.10.0",
     "logzero==1.7.0",
+]
+# The standalone research kit (quantsys.research): bhavcopy and F&O downloads
+# and the parquet panel cache. Neither the engine nor the tests need these.
+research = [
+    "pyarrow>=17,<26",
+    "requests>=2.31,<3",
 ]
 
 [build-system]
@@ -86,6 +92,10 @@ xfail_strict = true
 filterwarnings = [
     "error::DeprecationWarning:quantsys.*",
     "error::FutureWarning:quantsys.*",
+    # smartapi-python is pinned (see the broker extra) and sets TLS options
+    # that Python deprecates when it builds its SSL context. Nothing to fix
+    # on our side; our own deprecations above still fail the run.
+    "ignore:ssl.OP_NO_SSL:DeprecationWarning:SmartApi",
 ]
 markers = [
     "slow: deselect with -m 'not slow'",
@@ -127,15 +137,15 @@ ignore = [
     # rather than riding along with a formatting pass. Do not add new
     # violations: they are only tolerated in the code that predates linting.
     #
-    # B905  zip() without strict= — flipping to strict=True raises on ragged
+    # B905  zip() without strict=: flipping to strict=True raises on ragged
     #       inputs, which is the point, but each of the 15 sites needs its
     #       length invariant confirmed first (several zip price/qty arrays).
-    # B904  raise ... from — improves tracebacks; mechanical but touches 14
+    # B904  raise ... from: improves tracebacks; mechanical but touches 14
     #       error paths in the broker adapter that have their own tests.
-    # UP042 str,Enum -> StrEnum — changes __str__ from "Class.NAME" to the
+    # UP042 str,Enum -> StrEnum: changes __str__ from "Class.NAME" to the
     #       value, and these enums are persisted to JSON and Postgres. A
     #       silent serialisation change is exactly what this repo cannot have.
-    # SIM115 open() without a context manager — the two sites hold long-lived
+    # SIM115 open() without a context manager: the two sites hold long-lived
     #       handles deliberately.
     "B905", "B904", "UP042", "SIM115",
     # Cosmetic-only leftovers in pre-lint code.
@@ -157,7 +167,7 @@ plugins = ["pydantic.mypy"]
 files = ["src/quantsys"]
 # Core numerical modules are held to a stricter bar than the broker/research
 # edges, which touch untyped third-party SDKs. Tightened module-by-module
-# rather than switched on globally — see docs/ENVIRONMENT.md.
+# rather than switched on globally: see docs/ENVIRONMENT.md.
 warn_unused_configs = true
 warn_redundant_casts = true
 warn_unused_ignores = true

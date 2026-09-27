@@ -102,7 +102,12 @@ def _run(cfg, equity0: float, seed=0, n=N, override_equity=None):
         if gross > cap:
             violations.append((t, "gross", gross, cap))
         for s, v in post.items():
-            if abs(v) > 0.25 * max(eq, 1.0) * 1.15:
+            # The real cap. Targets are re-verified after lot rounding and the
+            # band never holds back a cut back under a cap, so a held position
+            # can only sit above it by drift too small to be worth an order:
+            # less than the dust floor plus one lot.
+            slack = engine.sizer.effective_min_notional(eq) + prices[s] * INSTS[s].lot_size
+            if abs(v) > 0.25 * max(eq, 1.0) + slack:
                 violations.append((t, f"per_instrument:{s}", abs(v), 0.25 * eq))
     return engine, broker, decisions, violations, pos_log
 

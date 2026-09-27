@@ -19,7 +19,9 @@ function csrfToken(): string {
 async function handle<T>(res: Response): Promise<T> {
   if (res.status === 401) {
     if (!location.pathname.startsWith("/login")) {
-      location.href = "/login";
+      // a full load, not router.push: it drops every cached query of the old session,
+      // and replace keeps the expired page out of history
+      location.replace("/login");
     }
     throw new ApiError(401, "not authenticated");
   }
