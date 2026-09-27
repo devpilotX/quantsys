@@ -110,9 +110,18 @@ class OrderJournal(Protocol):
         """A status read from the broker for one of our orders."""
         ...
 
+    def flatten_attempts_used(self, stamp: str) -> int:
+        """How many flatten attempts the journal already holds for bar minute
+        ``stamp`` (``%y%m%d%H%M``), so a flatten after a restart takes the
+        next attempt number instead of reusing one the journal refuses."""
+        ...
+
 
 class NullJournal:
     """No durable record: engine-only use and tests."""
+
+    def flatten_attempts_used(self, stamp: str) -> int:
+        return 0
 
     def before_send(self, order: BrokerOrder, mo: ManagedOrder) -> OrderAck | None:
         return None
@@ -173,12 +182,27 @@ class OMS:
         stamp = bar_ts.strftime("%y%m%d%H%M")                  # 10
         return f"Q{source}{stamp}{symbol_index:03d}{seq:02d}"  # 17, +"-s9" = 20
 
+    @staticmethod
+    def flatten_prefix(stamp: str) -> str:
+        """The id prefix every flatten order in bar minute ``stamp`` shares."""
+        return f"Q{SOURCE_FLATTEN}{stamp}"
+
+    @staticmethod
+    def seq_of(client_order_id: str) -> int:
+        """The seq field of an id from client_id(), slice suffix ignored."""
+        return int(client_order_id[15:17])
+
     def _flatten_attempt(self, ts: datetime) -> int:
-        """This flatten's attempt number within its minute (0, 1, ...). The
-        count lives in memory, so after a restart a flatten in the same minute
-        re-derives attempt 0 and the journal refuses to send it again."""
+        """This flatten's attempt number within its minute (0, 1, ...).
+
+        The in-memory count is raised to what the journal already holds, so
+        after a restart a flatten in the same minute takes a fresh id. Reusing
+        attempt 0 would have the journal refuse the send as a duplicate,
+        leaving the kill path unable to flatten until the minute rolled over.
+        """
         stamp = ts.strftime("%y%m%d%H%M")
-        n = self._flatten_calls.get(stamp, 0)
+        n = max(self._flatten_calls.get(stamp, 0),
+                self.journal.flatten_attempts_used(stamp))
         self._flatten_calls[stamp] = n + 1
         return n
 

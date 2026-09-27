@@ -16,6 +16,7 @@ from qsdash.bridge.livebroker import LiveExecutionBroker
 from qsdash.bus import SyncPublisher
 from qsdash.db import SessionLocal, now_ist
 from qsdash.models import Command, RuntimeConfig
+from quantsys.execution.broker import BrokerError
 
 if TYPE_CHECKING:  # pragma: no cover
     from qsdash.bridge.runner import Runner
@@ -202,15 +203,13 @@ class CommandConsumer:
             if not isinstance(r.broker, LiveExecutionBroker):
                 raise _Reject("rebaseline_live_book needs the live execution broker; "
                               f"this engine runs {r.mode}")
-            out: dict = {"ok": True, "baseline": r.broker.rebaseline()}
+            try:
+                baseline = r.broker.rebaseline()
+            except BrokerError as e:
+                # fills in flight or an unreadable book: the halt stays
+                raise _Reject(str(e)) from e
             r.engine.risk.clear_halt()
-            working = sorted(r.broker.working_symbols())
-            if working:
-                out["working"] = working
-                out["note"] = ("fills on these symbols that are at the broker but not yet "
-                               "booked by a postback are now counted twice; if "
-                               "reconciliation freezes again, re-baseline once they finish")
-            return out
+            return {"ok": True, "baseline": baseline}
 
         if kind == "strategy_toggle":
             name = p.get("strategy", "")

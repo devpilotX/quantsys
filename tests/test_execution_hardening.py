@@ -604,6 +604,26 @@ def test_flatten_ids_carry_the_attempt_within_the_minute():
     assert d.parent_id == OMS.client_id(_T2, idx, 0)
 
 
+def test_flatten_attempt_continues_from_the_journal_after_a_restart():
+    """A new OMS starts with an empty counter; the journal knows attempts 0
+    and 1 were used this minute, so the next flatten takes attempt 2."""
+    from quantsys.execution.oms import SOURCE_FLATTEN, NullJournal
+
+    class Journal(NullJournal):
+        def flatten_attempts_used(self, stamp: str) -> int:
+            return 2 if stamp == _T1.strftime("%y%m%d%H%M") else 0
+
+    b = _adapter(BookTransport())
+    oms = OMS(b, journal=Journal())
+    oms.retry_pause_s = 0.0
+    insts = b.instruments()
+    idx = sorted(insts).index("SBIN-EQ")
+    (mo,) = oms.submit_intents([_intent(-10, urgency=Urgency.KILL)], insts, _T1, _PX,
+                               positions={"SBIN-EQ": 10}, source=SOURCE_FLATTEN)
+    assert mo.parent_id == OMS.client_id(_T1, idx, 2, source=SOURCE_FLATTEN)
+    assert OMS.seq_of(mo.parent_id + "-s0") == 2
+
+
 def test_observation_asks_per_order_without_an_order_book_read():
     t = BookTransport()
     b = _adapter(t)
