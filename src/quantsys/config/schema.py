@@ -227,6 +227,10 @@ class CostConfig(BaseModel):
     stamp_intraday: float = 0.00003
     stamp_future: float = 0.00002
     stamp_option: float = 0.00003
+    # Angel One DP charge per ISIN debit, checked 2026-09-27 on its
+    # exchange-transaction-charges page: Rs 20 + GST (CDSL Rs 3.50 plus Angel
+    # One Rs 16.50). Charged on each delivery equity sell; GST applies on top.
+    dp_charge_per_sell: float = Field(20.0, ge=0.0)
     gst: float = 0.18
     slippage_bps: dict[str, float] = {"EQUITY": 3.0, "FUTURE": 1.5, "OPTION": 8.0, "INDEX": 0.0}
     impact_coeff: float = 0.1

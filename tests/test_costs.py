@@ -56,6 +56,31 @@ def test_gst_base(cm):
     assert c.gst == pytest.approx(0.18 * (c.brokerage + c.exchange_txn + c.sebi))
 
 
+def test_dp_charge_only_on_delivery_equity_sells(cm):
+    """Angel One debits Rs 20 + GST per ISIN when a delivery holding is sold
+    (issue #22). Buys, intraday and F&O pay none."""
+    eq = make_inst("RELIANCE")
+    sell = cm.order_cost(eq, 100, 1500.0, is_buy=False, delivery=True)
+    assert sell.dp == 20.0
+    assert sell.gst == pytest.approx(0.18 * (sell.brokerage + sell.exchange_txn
+                                              + sell.sebi + sell.dp))
+    assert sell.total == pytest.approx(sum((sell.brokerage, sell.stt, sell.exchange_txn,
+                                            sell.sebi, sell.stamp, sell.gst,
+                                            sell.slippage, sell.impact, sell.dp)))
+    assert cm.order_cost(eq, 100, 1500.0, is_buy=True, delivery=True).dp == 0.0
+    assert cm.order_cost(eq, 100, 1500.0, is_buy=False, delivery=False).dp == 0.0
+    fut = make_inst("F", kind=InstrumentKind.FUTURE)
+    assert cm.order_cost(fut, 65, 25000.0, is_buy=False).dp == 0.0
+
+
+def test_dp_charge_is_configurable(cm):
+    eq = make_inst("RELIANCE")
+    off = CostModel(CostConfig(dp_charge_per_sell=0.0))
+    base = cm.order_cost(eq, 100, 1500.0, is_buy=False, delivery=True)
+    zero = off.order_cost(eq, 100, 1500.0, is_buy=False, delivery=True)
+    assert base.total - zero.total == pytest.approx(20.0 * 1.18)
+
+
 def test_equity_delivery_vs_intraday(cm):
     eq = make_inst("RELIANCE")
     deliv = cm.order_cost(eq, 100, 1500.0, is_buy=True, delivery=True)
