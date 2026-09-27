@@ -92,6 +92,9 @@ class BookTransport:
         self.calls += 1
         return {"status": True, "data": {"availablecash": "1500000"}}
 
+    def holding(self):
+        return {"status": True, "data": []}
+
     def position(self):
         self.calls += 1
         return self.position_resp
@@ -333,6 +336,57 @@ def test_positions_empty_book_is_flat():
     assert _adapter(t).positions() == []
 
 
+def _holding_row(qty: str, t1: str = "0", avg: str = "540") -> dict:
+    return {"tradingsymbol": "SBIN-EQ", "symboltoken": "3045", "exchange": "NSE",
+            "quantity": qty, "t1quantity": t1, "averageprice": avg}
+
+
+def test_positions_include_delivery_holdings():
+    """A delivery equity bought on an earlier session is only in holdings.
+    Reading positions alone reported it as flat, so reconciliation froze and
+    orders were sized from a book without it (issue #20)."""
+    t = BookTransport()
+    t.position_resp = {"status": True, "data": None}
+    t.holding = lambda: {"status": True, "data": [_holding_row("20", t1="5")]}
+    [p] = _adapter(t).positions()
+    assert (p.symbol, p.qty) == ("SBIN-EQ", 25)
+    assert p.avg_price == pytest.approx(540.0)
+
+
+def test_todays_delivery_sell_nets_against_the_holding():
+    """Selling 8 of 20 held shares today is a DELIVERY -8 in getPosition and
+    must net to 12, not read as a new short of 8."""
+    t = BookTransport()
+    t.position_resp = {"status": True, "data": [
+        {"tradingsymbol": "SBIN-EQ", "symboltoken": "3045", "exchange": "NSE",
+         "producttype": "DELIVERY", "netqty": "-8", "netprice": "560"}]}
+    t.holding = lambda: {"status": True, "data": [_holding_row("20")]}
+    [p] = _adapter(t).positions()
+    assert p.qty == 12
+
+
+def test_a_fully_sold_holding_is_flat():
+    t = BookTransport()
+    t.position_resp = {"status": True, "data": [
+        {"tradingsymbol": "SBIN-EQ", "symboltoken": "3045", "exchange": "NSE",
+         "producttype": "DELIVERY", "netqty": "-20", "netprice": "560"}]}
+    t.holding = lambda: {"status": True, "data": [_holding_row("20")]}
+    assert _adapter(t).positions() == []
+
+
+@pytest.mark.parametrize("resp", [
+    {"status": False, "message": "Invalid Token", "data": None},
+    {"status": True, "data": [_holding_row("twenty")]},
+    None,
+], ids=["status_false", "qty_garbage", "none"])
+def test_an_unreadable_holding_read_raises(resp):
+    """A failed holdings read must not look like 'no holdings'."""
+    t = BookTransport()
+    t.holding = lambda: resp
+    with pytest.raises(BrokerError):
+        _adapter(t).positions()
+
+
 def test_order_book_error_payload_raises():
     t = BookTransport()
     b = _adapter(t)
@@ -548,6 +602,26 @@ def test_flatten_ids_carry_the_attempt_within_the_minute():
     assert len(t.placed) == 2
     (d,) = oms.submit_intents([_intent(5)], insts, _T2, _PX, positions={})
     assert d.parent_id == OMS.client_id(_T2, idx, 0)
+
+
+def test_flatten_attempt_continues_from_the_journal_after_a_restart():
+    """A new OMS starts with an empty counter; the journal knows attempts 0
+    and 1 were used this minute, so the next flatten takes attempt 2."""
+    from quantsys.execution.oms import SOURCE_FLATTEN, NullJournal
+
+    class Journal(NullJournal):
+        def flatten_attempts_used(self, stamp: str) -> int:
+            return 2 if stamp == _T1.strftime("%y%m%d%H%M") else 0
+
+    b = _adapter(BookTransport())
+    oms = OMS(b, journal=Journal())
+    oms.retry_pause_s = 0.0
+    insts = b.instruments()
+    idx = sorted(insts).index("SBIN-EQ")
+    (mo,) = oms.submit_intents([_intent(-10, urgency=Urgency.KILL)], insts, _T1, _PX,
+                               positions={"SBIN-EQ": 10}, source=SOURCE_FLATTEN)
+    assert mo.parent_id == OMS.client_id(_T1, idx, 2, source=SOURCE_FLATTEN)
+    assert OMS.seq_of(mo.parent_id + "-s0") == 2
 
 
 def test_observation_asks_per_order_without_an_order_book_read():

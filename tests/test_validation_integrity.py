@@ -78,7 +78,7 @@ def _zero_costs() -> CostModel:
         brokerage_flat=0.0, brokerage_pct=0.0, stt_future_sell=0.0, stt_option_sell=0.0,
         stt_delivery=0.0, stt_intraday_sell=0.0, exch_equity=0.0, exch_future=0.0,
         exch_option=0.0, sebi_rate=0.0, stamp_delivery=0.0, stamp_intraday=0.0,
-        stamp_future=0.0, stamp_option=0.0, gst=0.0,
+        stamp_future=0.0, stamp_option=0.0, dp_charge_per_sell=0.0, gst=0.0,
         slippage_bps={"EQUITY": 0.0, "FUTURE": 0.0, "OPTION": 0.0, "INDEX": 0.0},
         impact_coeff=0.0))
 

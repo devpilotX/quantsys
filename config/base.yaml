@@ -98,7 +98,8 @@ regime:
 # Costs: STT verified June 2026 (Budget 2026: futures 0.05%, options 0.15%,
 # effective 2026-04-01). Angel One brokerage checked 2026-09-26: equity
 # min(Rs 20, 0.1%) with a Rs 5 minimum, delivery included; F&O Rs 20 per
-# order. The full schedule is CostConfig in schema.py. Re-verify quarterly.
+# order. DP charge Rs 20 + GST per delivery sell, checked 2026-09-27. The full
+# schedule is CostConfig in schema.py. Re-verify quarterly.
 costs:
   brokerage_flat: 20.0
 

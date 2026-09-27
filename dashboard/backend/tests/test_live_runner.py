@@ -58,6 +58,9 @@ class _MockTransport:
     def rmsLimit(self):
         return {"status": True, "data": {"availablecash": "1000000"}}
 
+    def holding(self):
+        return {"status": True, "data": []}
+
     def position(self):
         return {"status": True, "data": []}
 
@@ -386,6 +389,9 @@ class _BookTransport(_MockTransport):
         self.rows: list[dict] = []
         self.position_calls = 0
         self.unreadable = False
+
+    def holding(self):
+        return {"status": True, "data": []}
 
     def position(self):
         self.position_calls += 1

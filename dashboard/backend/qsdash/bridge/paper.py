@@ -203,7 +203,7 @@ class PaperBroker:
         )
         fees = {
             "brokerage": cb.brokerage, "stt": cb.stt, "exchange_txn": cb.exchange_txn,
-            "sebi": cb.sebi, "stamp": cb.stamp, "gst": cb.gst,
+            "sebi": cb.sebi, "stamp": cb.stamp, "gst": cb.gst, "dp": cb.dp,
             "slippage": cb.slippage, "impact": cb.impact,
         }
         coid = f"P-{ts.strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"

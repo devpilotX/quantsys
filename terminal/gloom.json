@@ -1,0 +1,22 @@
+{
+  "id": "quantsys",
+  "name": "quantsys",
+  "tagline": "Read-only monitor for the quantsys NSE trading engine",
+  "description": "Engine state, positions, the order journal, every decision's audit trail, sleeve statistics, performance, risk and backtest gate status from a quantsys dashboard (qsdash). Log in with the operator password and a TOTP code; the session lives in memory only.",
+  "categories": ["portfolio", "trading"],
+  "targets": ["cli", "tui"],
+  "hosts": [],
+  "contributes": {
+    "panes": [
+      "quantsys-overview",
+      "quantsys-positions",
+      "quantsys-orders",
+      "quantsys-decisions",
+      "quantsys-strategies",
+      "quantsys-performance",
+      "quantsys-risk",
+      "quantsys-backtests"
+    ]
+  },
+  "minGloom": "0.15.0"
+}

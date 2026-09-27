@@ -60,6 +60,9 @@ class Book:
             raise ConnectionError("rms read timed out")
         return {"status": True, "data": {"availablecash": "1500000"}}
 
+    def holding(self):
+        return {"status": True, "data": []}
+
     def position(self):
         self.reads.append("position")
         if self.positions_error:
@@ -544,6 +547,24 @@ def test_flatten_retried_in_the_same_minute_sends_the_exit(db):
     assert len({r.client_order_id for r in _rows(db)}) == 2
 
 
+def test_flatten_after_a_restart_in_the_same_minute_sends_the_exit(db):
+    """The attempt counter lived in memory: a fresh process re-derived
+    attempt 0, whose REJECTED row the journal holds, and sent nothing, so
+    the kill path could not flatten until the minute rolled over (#25)."""
+    t = Book()
+    t.hold(10)
+    lb = _live(t)
+    t.on_place = _refuse_orders
+    assert list(lb.flatten_all(_PX, _TS)["blocked"]) == ["SBIN-EQ"]
+
+    t.on_place = None
+    restarted = _live(t)                       # new process: empty in-memory counter
+    out = restarted.flatten_all(_PX, _TS + timedelta(seconds=20))
+    assert out == {"sent": ["SBIN-EQ"], "blocked": {}}
+    assert [(p["transactiontype"], p["quantity"]) for p in t.placed] == [("SELL", "10")]
+    assert len({r.client_order_id for r in _rows(db)}) == 2
+
+
 def test_rebaseline_command_ends_a_freeze_that_clear_halt_cannot(db):
     """clear_halt was re-latched on the next bar, because the intended book
     never changes, and rebaseline() had no caller."""
@@ -571,6 +592,27 @@ def test_rebaseline_command_ends_a_freeze_that_clear_halt_cannot(db):
     assert risk.halted_reason is None
     assert db.query(RiskEvent).filter(
         RiskEvent.mode == "live", RiskEvent.kind == "live_book_rebaselined").count() == 1
+
+
+def test_rebaseline_is_refused_while_a_fill_may_be_in_flight(db):
+    """The broker's book already holds a fill whose postback has not landed;
+    a baseline taken then counts it, and the postback books it again (#25).
+    The command now refuses and the halt stays until the order finishes."""
+    t = Book()
+    lb = _live(t)
+    runner = _LiveRunner(lb)
+    risk = runner.engine.risk
+    lb.refresh_snapshot()
+    lb.execute(_decision(_buy(10)), None, _PX, _TS)    # still working at the broker
+    t.hold(10)                                          # filled; no postback yet
+    risk.reconcile({}, {"SBIN-EQ": 10})
+    assert risk.halted_reason is not None
+
+    with pytest.raises(_Reject, match="fills may be in flight on SBIN-EQ"):
+        _command(runner, "rebaseline_live_book")
+    assert risk.halted_reason is not None
+    assert db.query(RiskEvent).filter(
+        RiskEvent.mode == "live", RiskEvent.kind == "live_book_rebaselined").count() == 0
 
 
 # --------------------------------------------- after_send vs a racing postback

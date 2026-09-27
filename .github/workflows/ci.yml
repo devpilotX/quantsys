@@ -181,6 +181,35 @@ jobs:
         run: npx tsc --noEmit
       - run: npm run build
 
+  terminal:
+    name: terminal plugin types + tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terminal
+    env:
+      # the Gloomberb host the plugin is built and tested against (0.15.2)
+      GLOOMBERB_REVISION: 0e6e9d5bac0fd40c4ef3dabfa6044724f4eb3e88
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.11"
+      - run: bun install --frozen-lockfile
+      - name: Link the Gloomberb host
+        # Gloomberb links the host into a plugin rather than installing it, so
+        # there is one copy of gloomberb and of react; CI does the same.
+        run: |
+          git init "$RUNNER_TEMP/gloomberb"
+          git -C "$RUNNER_TEMP/gloomberb" remote add origin https://github.com/gloom-sh/gloomberb.git
+          git -C "$RUNNER_TEMP/gloomberb" fetch --depth 1 origin "$GLOOMBERB_REVISION"
+          git -C "$RUNNER_TEMP/gloomberb" checkout --detach FETCH_HEAD
+          bun install --cwd "$RUNNER_TEMP/gloomberb" --frozen-lockfile
+          ln -sfn "$RUNNER_TEMP/gloomberb" node_modules/gloomberb
+          ln -sfn "$RUNNER_TEMP/gloomberb/node_modules/react" node_modules/react
+      - run: bun run typecheck
+      - run: bun test
+
   images:
     name: docker images + first-deploy smoke
     runs-on: ubuntu-latest
@@ -293,7 +322,7 @@ jobs:
     # every time the matrix changes.
     name: CI passed
     if: always()
-    needs: [lint, shell, test, dashboard, postgres, frontend, images, audit, secrets, build]
+    needs: [lint, shell, test, dashboard, postgres, frontend, terminal, images, audit, secrets, build]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any required job failed

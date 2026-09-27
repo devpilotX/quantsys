@@ -59,6 +59,9 @@ class FakeTransport:
     def rmsLimit(self):
         return {"status": True, "data": {"availablecash": "1500000"}}
 
+    def holding(self):
+        return {"status": True, "data": []}
+
     def position(self):
         return {"status": True,
                 "data": [{"tradingsymbol": "SBIN-EQ", "netqty": "10", "netprice": "550"}]}

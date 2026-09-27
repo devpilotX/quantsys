@@ -10,8 +10,11 @@ June 2026 (Budget 2026 STT hike effective 2026-04-01):
 - Angel One brokerage (checked 2026-09-26): equity delivery and intraday
   min(Rs 20, 0.1%) per order with a Rs 5 minimum; F&O Rs 20 per order.
   Delivery was modelled as free, which it has not been since 2024-11-01.
-- Not modelled: depository (DP) charges on delivery sells, levied per scrip
-  per day by the depository participant.
+- Depository (DP) charge on every delivery equity sell: Angel One's tariff
+  (checked 2026-09-27) lists Rs 20 + GST per ISIN debit, CDSL's share
+  included. It is levied per scrip per day; the engine sends at most one
+  sell per symbol per decision, so charging it per sell order can only
+  overstate it on a day with two sells of the same scrip.
 - GST 18% on (brokerage + exchange txn + SEBI fees); SEBI Rs 10/crore.
 - Stamp duty (buy side only): delivery 0.015%, intraday 0.003%,
   futures 0.002%, options 0.003%.
@@ -43,12 +46,13 @@ class CostBreakdown:
     gst: float
     slippage: float
     impact: float
+    dp: float = 0.0
 
     @property
     def total(self) -> float:
         return (
             self.brokerage + self.stt + self.exchange_txn + self.sebi
-            + self.stamp + self.gst + self.slippage + self.impact
+            + self.stamp + self.gst + self.slippage + self.impact + self.dp
         )
 
 
@@ -102,14 +106,17 @@ class CostModel:
             exchange = cfg.exch_equity * notional
 
         sebi = cfg.sebi_rate * notional
-        gst = cfg.gst * (brokerage + exchange + sebi)
+        # the depository debits the scrip when a delivery holding is sold
+        dp = (cfg.dp_charge_per_sell
+              if kind == InstrumentKind.EQUITY and delivery and not is_buy and qty else 0.0)
+        gst = cfg.gst * (brokerage + exchange + sebi + dp)
         slippage = cfg.slippage_bps.get(kind.value, 5.0) / 1e4 * notional
 
         impact = 0.0
         if inst.adv and inst.adv > 0 and sigma_daily is not None:
             impact = cfg.impact_coeff * sigma_daily * ((abs(qty) / inst.adv) ** 0.5) * notional
 
-        return CostBreakdown(brokerage, stt, exchange, sebi, stamp, gst, slippage, impact)
+        return CostBreakdown(brokerage, stt, exchange, sebi, stamp, gst, slippage, impact, dp)
 
     def round_trip(
         self,

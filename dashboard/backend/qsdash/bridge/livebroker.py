@@ -320,7 +320,16 @@ class LiveExecutionBroker:
 
     def rebaseline(self) -> dict[str, int]:
         """Operator action, after a reconciliation halt has been explained:
-        retire the old baseline and take a new one from the broker now."""
+        retire the old baseline and take a new one from the broker now.
+
+        Refused while any symbol has fills in flight (working_symbols): the
+        broker's book would already hold such a fill, and its postback would
+        then book it a second time on top of the new baseline."""
+        in_flight = sorted(self.working_symbols())
+        if in_flight:
+            raise BrokerError("cannot re-baseline while fills may be in flight on "
+                              f"{', '.join(in_flight)}; retry once those orders finish "
+                              f"and their postbacks land (at most {self.postback_grace_s:.0f} s)")
         positions = {p.symbol: p for p in self.broker.positions() if p.qty != 0}
         sess = SessionLocal()
         try:
@@ -524,6 +533,19 @@ class LiveExecutionBroker:
         return {"sent": sent, "blocked": blocked}
 
     # ------------------------------------------------- OrderJournal hooks
+    def flatten_attempts_used(self, stamp: str) -> int:
+        """Attempts the journal already holds for flattens in bar minute
+        ``stamp``: one more than the highest attempt number among them."""
+        prefix = OMS.flatten_prefix(stamp)
+        sess = SessionLocal()
+        try:
+            ids = [r[0] for r in (sess.query(OrderRow.client_order_id)
+                                  .filter(OrderRow.mode == self.mode,
+                                          OrderRow.client_order_id.like(f"{prefix}%")))]
+        finally:
+            sess.close()
+        return 1 + max((OMS.seq_of(cid) for cid in ids), default=-1)
+
     def before_send(self, order: BrokerOrder, mo: ManagedOrder) -> OrderAck | None:
         """Commit the order row before the broker call. An existing row means
         this order was already handled: resolve it rather than send again."""

@@ -273,7 +273,7 @@ def test_costs_are_non_negative_and_finite_and_monotone_in_size(small_cfg, qty, 
 
     for cb in (small, big):
         for name in ("brokerage", "stt", "exchange_txn", "sebi", "stamp", "gst",
-                     "slippage", "impact"):
+                     "slippage", "impact", "dp"):
             v = getattr(cb, name)
             assert math.isfinite(v), f"{name} not finite"
             assert v >= 0.0, f"{name} negative"
