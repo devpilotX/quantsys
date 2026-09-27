@@ -60,6 +60,9 @@ class Book:
             raise ConnectionError("rms read timed out")
         return {"status": True, "data": {"availablecash": "1500000"}}
 
+    def holding(self):
+        return {"status": True, "data": []}
+
     def position(self):
         self.reads.append("position")
         if self.positions_error:

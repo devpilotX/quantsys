@@ -459,6 +459,15 @@ class AngelOneBroker:
 
     # --------------------------------------------------------- positions
     def positions(self) -> list[BrokerPosition]:
+        """The broker's net book: today's positions plus delivery holdings.
+
+        getPosition covers intraday and carried F&O positions and the day's
+        delivery trades, but a delivery equity bought on an earlier session
+        has moved to holdings and is absent from it. Holdings are read as
+        settled quantity plus T1 (bought, not yet settled), and today's
+        delivery trades from getPosition are added on top, so a sell today
+        of an older holding nets it down rather than reading as a new short.
+        """
         _take(self._generic, 10, "position")
         try:
             resp = self._transport.position()
@@ -476,7 +485,30 @@ class AngelOneBroker:
             # one row per product type: net them, never let one overwrite another
             net[sym] = net.get(sym, 0) + qty
             cost[sym] = cost.get(sym, 0.0) + qty * _float_field(r, "netprice")
+
+        for sym, qty, avg in self._holdings():
+            net[sym] = net.get(sym, 0) + qty
+            cost[sym] = cost.get(sym, 0.0) + qty * avg
         return [BrokerPosition(sym, q, cost[sym] / q) for sym, q in net.items() if q != 0]
+
+    def _holdings(self) -> list[tuple[str, int, float]]:
+        """(engine symbol, settled + T1 quantity, average price) per delivery
+        holding. An unreadable response raises like every other book read:
+        a missing holding would read as a flat position."""
+        _take(self._generic, 10, "holding")
+        try:
+            resp = self._transport.holding()
+        except Exception as e:
+            raise BrokerError(f"holding() failed: {self._scrub(e)}", retryable=True)
+        out: list[tuple[str, int, float]] = []
+        for r in self._rows(resp, "holding()"):
+            sym = self._engine_symbol(r)
+            if not sym:
+                raise BrokerError(f"holding row without a symbol: {r}", retryable=True)
+            qty = _int_field(r, "quantity") + _int_field(r, "t1quantity")
+            if qty:
+                out.append((sym, qty, _float_field(r, "averageprice")))
+        return out
 
     def open_orders(self) -> list[BrokerOrder]:
         """Every order in today's book (open or not)."""

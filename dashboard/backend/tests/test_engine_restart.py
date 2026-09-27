@@ -32,6 +32,9 @@ class _MockTransport:
     def rmsLimit(self):
         return {"status": True, "data": {"availablecash": "1000000"}}
 
+    def holding(self):
+        return {"status": True, "data": []}
+
     def position(self):
         return {"status": True, "data": []}
 
