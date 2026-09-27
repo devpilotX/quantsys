@@ -14,6 +14,35 @@ stack, the signals, the live order path and the paper runner. Each fix below
 has a regression test that failed before it. What they mean for the running
 forward study is appended to `docs/FORWARD_STUDY_2.md`.
 
+### Fixed: follow-up to the review
+
+- The broker book includes delivery holdings. `positions()` read only
+  `getPosition`, so an equity bought on an earlier session read as flat:
+  reconciliation froze and orders were sized from a book without it. Holdings
+  (settled plus T1) are added, and today's delivery sells net them down.
+- A flatten after a restart in the same minute is sent. The attempt counter
+  lived in memory, so a restarted engine re-derived an id the journal had
+  already refused and the kill path could not flatten until the minute
+  rolled over; the OMS now takes the next attempt from the journal.
+- `rebaseline_live_book` is refused while any symbol has fills in flight. A
+  baseline taken then already held the fill, and the late postback booked it
+  a second time.
+- **[numbers]** Delivery equity sells pay Angel One's DP charge, Rs 20 + GST
+  per ISIN debit (tariff page checked 2026-09-27). 0.5 bps at the research
+  kit's reference ticket, so no reported verdict moves.
+
+### Added: follow-up to the review
+
+- `python -m qsdash.cli console-role`, run by `init-db` whenever
+  `CONSOLE_DATABASE_URL` is set: creates or updates the SQL console's
+  read-only role and grants it exactly the console's tables. `preflight.py`
+  warns when the URL is unset.
+- `terminal/`: a Gloomberb plugin with eight read-only panes on command-bar
+  mnemonics (`QS`, `QSP`, `QSO`, `QSD`, `QSS`, `QSE`, `QSR`, `QSB`) and a
+  `QSC` login; the session lives in memory only. CI job `terminal`.
+- `docs/DEVELOPMENT.md` holds setup, tests and run commands; the README
+  covers the system itself.
+
 ### Fixed: paper and live runner
 
 - **[numbers]** The engine's state now survives a restart. It is saved to a
