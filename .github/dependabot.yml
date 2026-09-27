@@ -43,6 +43,12 @@ updates:
       # eslint-config-next is released in lockstep with next
       next:
         patterns: ["next", "eslint-config-next"]
+    ignore:
+      # TypeScript 7 fails to load under eslint-config-next 16.3 (the frontend
+      # job failed in npm run lint on #8). Take majors by hand once next
+      # supports them; minors and patches still arrive.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: "/"
