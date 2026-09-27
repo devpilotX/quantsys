@@ -2,6 +2,11 @@ version: 2
 updates:
   - package-ecosystem: pip
     directory: "/"
+    # constraints/*.txt are regenerated as a whole resolved set (see their
+    # header); bumping one pin at a time breaks the set, as pydantic-core
+    # alone did in #30.
+    exclude-paths:
+      - "constraints/**"
     schedule:
       interval: weekly
       day: monday
