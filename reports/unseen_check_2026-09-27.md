@@ -59,7 +59,7 @@ turn-of-month tilt still shows +12.3 bps a day in the window against +3.8
 outside (t = 1.67, below significance). Down-shock is not re-run by its own
 stop rule; its forward evidence comes from Forward Study 2.
 
-## Conclusion
+## What it means
 
 The closeout verdict stands and is slightly stronger: no price or volume rule
 in this project beats the index out of sample. Re-tuning on the 2016 to 2026
