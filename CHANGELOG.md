@@ -131,6 +131,10 @@ forward study is appended to `docs/FORWARD_STUDY_2.md`.
   dedicated read-only role.
 - A refused go-live request no longer leaves its deployable cap in force for
   the paper engine.
+- The live gate's backtest lock refuses a run that has no `P(SR<0)`; it had
+  treated a missing Monte-Carlo result as a pass.
+- `fetch_history` and the live runner exit with a one-line error and status
+  2 when the Angel One login fails, instead of a traceback.
 - The feed's first token refresh is no longer skipped on a host up for less
   than five minutes (this also made two feed tests fail on fresh CI runners).
 - **[numbers]** Configured NSE equities now resolve to their NSE listing. In
@@ -194,6 +198,10 @@ forward study is appended to `docs/FORWARD_STUDY_2.md`.
 - Property tests for the scaling primitives, the tier ladder and the cost
   model, and a property that no final two-leg target drifts past the hedge
   ratio tolerance.
+- A `research` extra (`pyarrow`, `requests`) for `quantsys.research`, which
+  failed on a clean install at its first parquet write.
+- `reports/unseen_check_2026-09-27.md`: the frozen research rules re-run on
+  the 68 sessions after the closeout; the verdict stands.
 - Migration `d2e3f4a50002` (`engine_state`).
 - Settings `ANGEL_WEBHOOK_ALLOW_UNSIGNED` (dev only) and
   `CONSOLE_DATABASE_URL`; operator command `rebaseline_live_book`.
