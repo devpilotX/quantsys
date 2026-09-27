@@ -149,6 +149,25 @@ def check_webhook_secret() -> None:
               f"ANGEL_WEBHOOK_SECRET {problem}; the live gate will refuse to arm")
 
 
+def check_console_role() -> None:
+    """The SQL console should run as its own read-only role. Without one it
+    runs as the application role behind a read-only transaction and text
+    checks only; init-db creates the role once CONSOLE_DATABASE_URL is set."""
+    _backend_on_path()
+    try:
+        from qsdash.config import settings
+
+        url = settings.console_database_url
+    except (ImportError, ValueError) as e:
+        check(WARN, "console role", f"could not be checked ({e})")
+        return
+    if url:
+        check(OK, "console role", "CONSOLE_DATABASE_URL set; init-db keeps its grants current")
+    else:
+        check(WARN, "console role", "CONSOLE_DATABASE_URL not set; the SQL console runs "
+                                    "as the application role")
+
+
 def _migrations_head() -> str | None:
     from alembic.config import Config
     from alembic.script import ScriptDirectory
@@ -223,6 +242,7 @@ def main() -> int:
     check_cert(args.remote)
     check_env()
     check_webhook_secret()
+    check_console_role()
     check_db()
     check_live_gate()
 

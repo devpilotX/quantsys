@@ -108,6 +108,52 @@ def test_read_only_scope_on_postgres_refuses_writes_then_ends():
         conn.rollback()
 
 
+@pytest.mark.skipif(not on_postgres(), reason="needs Postgres")
+def test_console_role_is_created_read_only_and_kept_off_credentials(monkeypatch):
+    """The role used to be created by hand from a docstring (#23). The CLI
+    now creates it, grants exactly the console's tables, and can re-run."""
+    from qsdash import cli
+    from sqlalchemy.engine import make_url
+    from sqlalchemy.exc import DBAPIError
+
+    url = make_url(settings.database_url).set(username="qs_console_test",
+                                              password="console-test-pw-1234")
+    rendered = url.render_as_string(hide_password=False)
+    monkeypatch.setattr(settings, "console_database_url", rendered)
+    cli.console_role()
+    cli.console_role()                          # idempotent: second run updates
+
+    ro = create_engine(rendered)
+    try:
+        with ro.connect() as conn:
+            assert conn.exec_driver_sql("SELECT count(*) FROM orders").scalar() >= 0
+            assert conn.exec_driver_sql("SHOW transaction_read_only").scalar() == "on"
+            assert conn.exec_driver_sql("SHOW statement_timeout").scalar() == "5s"
+            with pytest.raises(DBAPIError, match="permission denied"):
+                conn.exec_driver_sql("SELECT password_hash FROM users")
+            conn.rollback()
+            with pytest.raises(DBAPIError, match="read-only transaction"):
+                conn.exec_driver_sql("DELETE FROM orders")
+            conn.rollback()
+    finally:
+        ro.dispose()
+        from qsdash.db import engine
+        with engine.begin() as conn:
+            conn.exec_driver_sql("DROP OWNED BY qs_console_test")
+            conn.exec_driver_sql("DROP ROLE qs_console_test")
+
+
+def test_console_role_refuses_the_application_role(monkeypatch):
+    from qsdash import cli
+
+    monkeypatch.setattr(settings, "console_database_url",
+                        "postgresql+psycopg://quantsys:pw@localhost:5432/quantsys")
+    monkeypatch.setattr(settings, "database_url",
+                        "postgresql+psycopg://quantsys:pw@localhost:5432/quantsys")
+    with pytest.raises(SystemExit):
+        cli.console_role()
+
+
 def test_query_runs_on_the_console_engine_when_configured(authed, monkeypatch, tmp_path):
     from qsdash.api.dbadmin import _console_engine
 

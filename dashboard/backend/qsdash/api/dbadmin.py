@@ -10,21 +10,14 @@ What makes the SQL console read-only, strongest first:
    queries then run on a small engine of their own (pool_size=2,
    max_overflow=0) as that role, so the app's pool is never starved and the
    database itself refuses writes and credential reads. This is the real
-   control; everything below is defence in depth. Create the role once:
-
-       CREATE ROLE qs_console LOGIN PASSWORD '<generate>'
-           NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION;
-       GRANT CONNECT ON DATABASE quantsys TO qs_console;
-       GRANT USAGE ON SCHEMA public TO qs_console;
-       GRANT SELECT ON ALL TABLES IN SCHEMA public TO qs_console;
-       REVOKE SELECT ON users, sessions FROM qs_console;
-       ALTER ROLE qs_console SET default_transaction_read_only = on;
-       ALTER ROLE qs_console SET statement_timeout = '5s';
-
-   then CONSOLE_DATABASE_URL=postgresql+psycopg://qs_console:<pw>@postgres:5432/quantsys.
-   Tables created by later migrations are not granted automatically, which is
-   the safe default: grant them one by one. In prod without it, every console
-   response carries a ``warning`` that the console runs on the application role.
+   control; everything below is defence in depth. ``python -m qsdash.cli
+   init-db`` creates the role from ``CONSOLE_DATABASE_URL`` (or run
+   ``qsdash.cli console-role`` on its own): LOGIN, no other privilege,
+   SELECT on every table in ``ALLOWED_TABLES`` and nothing on the credential
+   tables, ``default_transaction_read_only`` on and a 5 s statement timeout.
+   Every init-db re-grants, so tables added by later migrations are covered.
+   In prod without it, every console response carries a ``warning`` that the
+   console runs on the application role.
 2. Every query runs in a transaction set read-only for that statement:
    Postgres ``SET TRANSACTION READ ONLY`` with ``SET LOCAL statement_timeout``;
    SQLite ``PRAGMA query_only = ON``, restored when the query ends because
